@@ -206,9 +206,10 @@ typedef struct {
 
 void sound_play() {
     int channels  = 2;
-    Note song[2][4] = {
-            0,12,0,12,
-            24,27,29,27,
+
+    Note song[2][32] = {
+            0,-2,12,-2,2,-2,14,-2,3,-2,15,-2,8,-2,20,-2,7,-2,19,-2,7,-2,19,-2,5,-2,17,-2,7,-2,19,-2,
+            24,-2,27,-1,29,-1,27,29,-1,31,29,27,29,-1,27,-2,24,-2,27,-1,29,-1,27,29,-1,31,29,27,29,-1,27,-2,
     };
 
     Synth *synth = sound_init(channels);
@@ -216,14 +217,16 @@ void sound_play() {
         return;
     }
 
-    synth->channelData[0].attack = 2;
-    synth->channelData[0].decay = 10;
-    synth->channelData[0].sustain = 50;
-    synth->channelData[0].release = 10;
-    synth->channelData[1].attack = 2;
-    synth->channelData[1].decay = 30;
-    synth->channelData[1].sustain = 70;
-    synth->channelData[1].release = 2;
+    synth->channelData[0].attack = 0;
+    synth->channelData[0].decay = 3;
+    synth->channelData[0].sustain = 60;
+    synth->channelData[0].release = 30;
+    synth->channelData[0].wave = synth->triangleWave;
+    synth->channelData[1].attack = 1;
+    synth->channelData[1].decay = 5;
+    synth->channelData[1].sustain = 40;
+    synth->channelData[1].release = 10;
+    synth->channelData[1].wave = synth->squareWave2;
 
     for (int i = 0; i < 2; i++) {
         for (int pos = 0; pos < sizeof(song)/(channels * sizeof(Note)); pos++) {
@@ -240,7 +243,7 @@ void sound_play() {
                 synth->channelData[channel].amplitude = 0;
                 synth->channelData[channel].voiceFreq = sound_frequencyTable[note.pitch % (sizeof(sound_frequencyTable)/sizeof(Uint16))];
             }
-            SDL_Delay(250); /* let the audio callback play some sound for 5 seconds. */
+            SDL_Delay(125); /* let the audio callback play some sound for 5 seconds. */
         }
     }
     sound_close(synth);
