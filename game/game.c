@@ -4,6 +4,11 @@
 #include "screen.h"
 #include "synth.h"
 
+#define CHANNELS 4
+#define NOTE_OFF 126
+#define NO_NOTE 127
+
+
 typedef struct {
     Sint8 notes[64];
 }  Track;
@@ -17,6 +22,10 @@ typedef void(*KeyHandler)(SDL_Scancode scancode, SDL_Keymod keymod);
 KeyHandler keyHandler[256];
 Sint8 keyToNote[256];
 Uint8 stepping = 1;
+int bpm = 120;
+int trackPos = 63;
+Uint8 octave = 0;
+
 
 void moveHome(SDL_Scancode scancode, SDL_Keymod keymod) {
     rowOffset = 0;
@@ -69,21 +78,24 @@ void increaseStepping(SDL_Scancode scancode,SDL_Keymod keymod) {
 
 void playNote(SDL_Scancode scancode,SDL_Keymod keymod) {
     if (keyToNote[scancode] > -1) {
-        tracks[currentTrack].notes[rowOffset] = keyToNote[scancode];
+        tracks[currentTrack].notes[rowOffset] = keyToNote[scancode] + 12 * octave;
     }
     moveDownSteps(stepping);
 }
 
-void deleteNote(SDL_Scancode scancode,SDL_Keymod keymod) {
-    tracks[currentTrack].notes[rowOffset] = 127;
+void deleteNote(SDL_Scancode scancode, SDL_Keymod keymod) {
+    tracks[currentTrack].notes[rowOffset] = NO_NOTE;
     moveDownSteps(stepping);
 }
 
-void noteOff(SDL_Scancode scancode, Sint8 note) {
-    tracks[currentTrack].notes[rowOffset] = 126;
+void noteOff(SDL_Scancode scancode, SDL_Keymod keymod) {
+    tracks[currentTrack].notes[rowOffset] = NOTE_OFF;
     moveDownSteps(stepping);
 }
 
+void setOctave(SDL_Scancode scancode, SDL_Keymod keymod) {
+    octave = scancode - SDL_SCANCODE_F1;
+}
 
 void registerNote(SDL_Scancode scancode, Sint8 note) {
     keyToNote[scancode] = note;
@@ -142,17 +154,46 @@ void initKeyHandler() {
     keyHandler[SDL_SCANCODE_END] = moveEnd;
     keyHandler[SDL_SCANCODE_GRAVE] = increaseStepping;
     keyHandler[SDL_SCANCODE_NONUSBACKSLASH] = noteOff;
+    keyHandler[SDL_SCANCODE_F1] = setOctave;
+    keyHandler[SDL_SCANCODE_F2] = setOctave;
+    keyHandler[SDL_SCANCODE_F3] = setOctave;
+    keyHandler[SDL_SCANCODE_F4] = setOctave;
+    keyHandler[SDL_SCANCODE_F5] = setOctave;
+    keyHandler[SDL_SCANCODE_F6] = setOctave;
 }
 
+Uint32 getDelayFromBpm(int bpm) {
+    return 15000/bpm;
+}
+
+Uint32 playCallback(Uint32 interval, void *param) {
+    trackPos = (trackPos + 1) % 64;
+    for (int channel = 0; channel < CHANNELS; channel++) {
+        Sint8 note = tracks[channel].notes[trackPos];
+
+        if (note == NOTE_OFF) {
+            synth_noteOff(channel);
+        } else if (note >= 0 && note < 97) {
+            synth_noteTrigger(channel, note);
+        }
+    }
+    return interval;
+}
 
 int main(int argc, char* args[]) {
     SDL_Event event;
 
-    memset(tracks, 127, sizeof(Track)*32);
+    memset(tracks, NO_NOTE, sizeof(Track)*32);
     initKeyHandler();
     initNotes();
 
+    if (!synth_init(CHANNELS)) {
+        synth_close();
+        return 1;
+    }
+
     if (!screen_init()) {
+        synth_close();
         screen_close();
         return 1;
     }
@@ -164,9 +205,17 @@ int main(int argc, char* args[]) {
     screen_setColumn(2, 64, tracks[2].notes);
     screen_setColumn(3, 64, tracks[3].notes);
 
+    synth_setChannel(0, 0, 30, 70, 20, SQUARE_1);
+    synth_setChannel(1, 0, 30, 70, 20, SQUARE_2);
+    synth_setChannel(2, 0, 30, 70, 20, LOWPASS_SQUARE);
+    synth_setChannel(3, 0, 30, 70, 20, LOWPASS_SAW);
+
     SDL_Keymod keymod;
     bool quit = false;
     /* Loop until an SDL_QUIT event is found */
+
+    SDL_TimerID my_timer_id = SDL_AddTimer(getDelayFromBpm(bpm), playCallback, NULL);
+
     while( !quit ){
         /* Poll for events */
         while( SDL_PollEvent( &event ) ){
@@ -198,6 +247,8 @@ int main(int argc, char* args[]) {
         screen_setStepping(stepping);
         screen_update();
     }
+    SDL_RemoveTimer(my_timer_id);
+    synth_close();
     screen_close();
     return 0;
 }

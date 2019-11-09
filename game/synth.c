@@ -2,58 +2,43 @@
 #include <stdio.h>
 
 #include "synth.h"
+#include "frequency_table.h"
 
-Uint16 synth_frequencyTable[49] = {
-         26,
-         29,
-         31,
-         33,
-         35,
-         37,
-         39,
-         41,
-         44,
-         46,
-         49,
-         52,
-         55,
-         58,
-         62,
-         65,
-         69,
-         73,
-         78,
-         82,
-         87,
-         93,
-         98,
-         103,
-        110,
-        117,
-        123,
-        131,
-        139,
-        147,
-        156,
-        165,
-        175,
-        185,
-        196,
-        207,
-        220,
-        233,
-        247,
-        261,
-        277,
-        294,
-        311,
-        330,
-        349,
-        370,
-        392,
-        415,
-        440
-};
+typedef enum {
+    ATTACK,
+    DECAY,
+    SUSTAIN,
+    RELEASE,
+    OFF
+} Adsr;
+
+typedef struct {
+    Uint16 voiceFreq;
+    Uint16 wavePos;
+    Adsr adsr;
+    Sint16 amplitude;
+    Sint8 *wave;
+    Sint8 attack;
+    Sint8 decay;
+    Sint8 sustain;
+    Sint8 release;
+} Channel;
+
+typedef struct {
+    Uint16 sampleFreq;
+    Sint8 squareWave[256];
+    Sint8 squareWave2[256];
+    Sint8 lowpassWave[256];
+    Sint8 lowpassSaw[256];
+    Sint16 adTable[128];
+    Sint16 releaseTable[128];
+    SDL_AudioDeviceID audio;
+    Channel* channelData;
+    Uint8 channels;
+} Synth;
+
+Synth *synth = NULL;
+
 
 void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
     Synth *synth = (Synth*)userdata;
@@ -182,12 +167,12 @@ void _synth_initChannels(Synth *synth) {
     }
 }
 
-Synth *synth_init(int channels) {
+bool synth_init(Uint8 channels) {
     if (channels < 1) {
         fprintf(stderr, "Cannot set 0 channels\n");
-        return NULL;
+        return false;
     }
-    Synth *synth = calloc(1, sizeof(Synth));
+    synth = calloc(1, sizeof(Synth));
     synth->sampleFreq = 48000;
     synth->channels = channels;
     synth->channelData = calloc(channels, sizeof(Channel));
@@ -209,8 +194,7 @@ Synth *synth_init(int channels) {
     synth->audio = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     if (synth->audio == 0) {
         fprintf(stderr, "Failed to open audio due to %s\n", SDL_GetError());
-        synth_close(synth);
-        return NULL;
+        return false;
     } else {
         fprintf(stderr, "Freq %d channels %d format %04x\n", have.freq, have.channels, have.format);
     }
@@ -222,10 +206,10 @@ Synth *synth_init(int channels) {
 
     SDL_PauseAudioDevice(synth->audio, 0); /* start audio playing. */
 
-    return synth;
+    return true;
 }
 
-void synth_close(Synth *synth) {
+void synth_close() {
     if (NULL != synth) {
         if (synth->audio != 0) {
             SDL_CloseAudioDevice(synth->audio);
@@ -235,12 +219,61 @@ void synth_close(Synth *synth) {
             synth->channelData = NULL;
         }
         free(synth);
+        synth = NULL;
     }
 }
 
 typedef struct {
     Sint8 pitch;
 } Note;
+
+
+void synth_setChannel(Uint8 channel, Sint8 attack, Sint8 decay, Sint8 sustain, Sint8 release, Waveform waveform) {
+    if (synth == NULL || channel >= synth->channels) {
+        return;
+    }
+
+    Channel *ch = &synth->channelData[channel];
+    ch->attack = attack;
+    ch->decay = decay;
+    ch->sustain = sustain;
+    ch->release = release;
+    switch (waveform) {
+    case SQUARE_1:
+        ch->wave = synth->squareWave;
+        break;
+    case SQUARE_2:
+        ch->wave = synth->squareWave2;
+        break;
+    case LOWPASS_SQUARE:
+        ch->wave = synth->lowpassWave;
+        break;
+    case LOWPASS_SAW:
+        ch->wave = synth->lowpassSaw;
+        break;
+    }
+}
+
+void synth_notePitch(Uint8 channel, Sint8 note) {
+    synth->channelData[channel].voiceFreq = frequencyTable[(note) % (sizeof(frequencyTable)/sizeof(Uint16))];
+}
+
+void synth_noteTrigger(Uint8 channel, Sint8 note) {
+    synth->channelData[channel].adsr = ATTACK;
+    synth->channelData[channel].amplitude = 0;
+    synth_notePitch(channel, note);
+}
+
+void synth_noteOff(Uint8 channel) {
+    if (synth == NULL || channel >= synth->channels) {
+        return;
+    }
+    synth->channelData[channel].adsr = RELEASE;
+}
+
+
+
+
 
 void synth_play() {
     int channels  = 2;
@@ -251,8 +284,8 @@ void synth_play() {
     };
     Sint8 transpose[2] = {5,17};
 
-    Synth *synth = synth_init(channels);
-    if (NULL == synth) {
+    if (false == synth_init(channels)) {
+        synth_close();
         return;
     }
 
@@ -280,10 +313,10 @@ void synth_play() {
                 }
                 synth->channelData[channel].adsr = ATTACK;
                 synth->channelData[channel].amplitude = 0;
-                synth->channelData[channel].voiceFreq = synth_frequencyTable[(note.pitch+transpose[channel]) % (sizeof(synth_frequencyTable)/sizeof(Uint16))];
+                synth->channelData[channel].voiceFreq = frequencyTable[(note.pitch+transpose[channel]) % (sizeof(frequencyTable)/sizeof(Uint16))];
             }
             SDL_Delay(125); /* let the audio callback play some sound for 5 seconds. */
         }
     }
-    synth_close(synth);
+    synth_close();
 }

@@ -4,45 +4,26 @@
 #include <stdbool.h>
 #include <SDL2/SDL.h>
 
+
 typedef enum {
-    ATTACK,
-    DECAY,
-    SUSTAIN,
-    RELEASE,
-    OFF
-} Adsr;
+    SQUARE_1,
+    SQUARE_2,
+    LOWPASS_SQUARE,
+    LOWPASS_SAW
+} Waveform;
 
 
-typedef struct {
-    Sint8 attack;
-    Sint8 decay;
-    Sint8 sustain;
-    Sint8 release;
-    Uint16 voiceFreq;
-    Uint16 wavePos;
-    Adsr adsr;
-    Sint16 amplitude;
-    Sint8 *wave;
-} Channel;
+bool synth_init(Uint8 channels);
 
-typedef struct {
-    Uint16 sampleFreq;
-    Sint8 squareWave[256];
-    Sint8 squareWave2[256];
-    Sint8 lowpassWave[256];
-    Sint8 lowpassSaw[256];
-    Sint16 adTable[128];
-    Sint16 releaseTable[128];
-    SDL_AudioDeviceID audio;
-    Channel* channelData;
-    Uint8 channels;
-} Synth;
+void synth_setChannel(Uint8 channel, Sint8 attack, Sint8 decay, Sint8 sustain, Sint8 release, Waveform waveform);
 
-Synth *synth_init(int channels);
+void synth_notePitch(Uint8 channel, Sint8 note);
 
-void synth_setChannel(Synth* synth, int channel);
+void synth_noteOff(Uint8 channel);
 
-void synth_close(Synth *synth);
+void synth_noteTrigger(Uint8 channel, Sint8 note);
+
+void synth_close();
 
 void synth_play();
 

@@ -27,6 +27,8 @@ void screen_close();
  */
 void screen_setColumn(Uint8 column, Uint8 rows, Sint8 *mainColumn);
 
+void screen_setStepping(int stepping);
+
 void screen_setRowOffset(Sint8 rowOffset);
 
 /*
