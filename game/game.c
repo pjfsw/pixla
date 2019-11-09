@@ -4,31 +4,170 @@
 #include "screen.h"
 #include "synth.h"
 
-int main(int argc, char* args[]) {
-    SDL_Window* window = NULL;
-    SDL_Surface* screenSurface = NULL;
+typedef struct {
+    Sint8 notes[64];
+}  Track;
 
+Track tracks[32];
+Sint8 rowOffset = 0;
+Uint8 currentTrack = 0;
+
+typedef void(*KeyHandler)(SDL_Scancode scancode, SDL_Keymod keymod);
+
+KeyHandler keyHandler[256];
+Sint8 keyToNote[256];
+Uint8 stepping = 1;
+
+void moveHome(SDL_Scancode scancode, SDL_Keymod keymod) {
+    rowOffset = 0;
+    screen_setRowOffset(rowOffset);
+}
+
+void moveEnd(SDL_Scancode scancode, SDL_Keymod keymod) {
+    rowOffset = 63;
+    screen_setRowOffset(rowOffset);
+}
+
+void moveUpSteps(int steps) {
+    rowOffset-=steps;
+    if (rowOffset < 0) {
+        rowOffset += 64;
+    }
+    screen_setRowOffset(rowOffset);
+}
+
+void moveUp(SDL_Scancode scancode,SDL_Keymod keymod) {
+    moveUpSteps(1);
+}
+
+void moveDownSteps(int steps) {
+    rowOffset+=steps;
+    if (rowOffset > 63) {
+        rowOffset -= 64;
+    }
+    screen_setRowOffset(rowOffset);
+}
+
+void moveDown(SDL_Scancode scancode,SDL_Keymod keymod) {
+    moveDownSteps(1);
+}
+
+void increaseStepping(SDL_Scancode scancode,SDL_Keymod keymod) {
+    if (keymod & KMOD_LSHIFT) {
+        stepping--;
+        if (stepping < 0) {
+            stepping = 0;
+        }
+    } else {
+        stepping++;
+        if (stepping > 8) {
+            stepping = 8;
+        }
+    }
+    printf("%d\n",keymod);
+}
+
+void playNote(SDL_Scancode scancode,SDL_Keymod keymod) {
+    if (keyToNote[scancode] > -1) {
+        tracks[currentTrack].notes[rowOffset] = keyToNote[scancode];
+    }
+    moveDownSteps(stepping);
+}
+
+void deleteNote(SDL_Scancode scancode,SDL_Keymod keymod) {
+    tracks[currentTrack].notes[rowOffset] = 127;
+    moveDownSteps(stepping);
+}
+
+void noteOff(SDL_Scancode scancode, Sint8 note) {
+    tracks[currentTrack].notes[rowOffset] = 126;
+    moveDownSteps(stepping);
+}
+
+
+void registerNote(SDL_Scancode scancode, Sint8 note) {
+    keyToNote[scancode] = note;
+    keyHandler[scancode] = playNote;
+}
+
+
+void initNotes() {
+    memset(keyToNote, -1, sizeof(Sint8)*256);
+    registerNote(SDL_SCANCODE_Z, 0);
+    registerNote(SDL_SCANCODE_S, 1);
+    registerNote(SDL_SCANCODE_X, 2);
+    registerNote(SDL_SCANCODE_D, 3);
+    registerNote(SDL_SCANCODE_C, 4);
+    registerNote(SDL_SCANCODE_V, 5);
+    registerNote(SDL_SCANCODE_G, 6);
+    registerNote(SDL_SCANCODE_B, 7);
+    registerNote(SDL_SCANCODE_H, 8);
+    registerNote(SDL_SCANCODE_N, 9);
+    registerNote(SDL_SCANCODE_J, 10);
+    registerNote(SDL_SCANCODE_M, 11);
+    registerNote(SDL_SCANCODE_COMMA, 12);
+    registerNote(SDL_SCANCODE_L, 13);
+    registerNote(SDL_SCANCODE_PERIOD, 14);
+    registerNote(SDL_SCANCODE_SEMICOLON,15);
+    registerNote(SDL_SCANCODE_SLASH,16);
+
+    registerNote(SDL_SCANCODE_Q, 12);
+    registerNote(SDL_SCANCODE_2, 13);
+    registerNote(SDL_SCANCODE_W, 14);
+    registerNote(SDL_SCANCODE_3, 15);
+    registerNote(SDL_SCANCODE_E, 16);
+    registerNote(SDL_SCANCODE_R, 17);
+    registerNote(SDL_SCANCODE_5, 18);
+    registerNote(SDL_SCANCODE_T, 19);
+    registerNote(SDL_SCANCODE_6, 20);
+    registerNote(SDL_SCANCODE_Y, 21);
+    registerNote(SDL_SCANCODE_7, 22);
+    registerNote(SDL_SCANCODE_U, 23);
+    registerNote(SDL_SCANCODE_I, 24);
+    registerNote(SDL_SCANCODE_9, 25);
+    registerNote(SDL_SCANCODE_O, 26);
+    registerNote(SDL_SCANCODE_0, 27);
+    registerNote(SDL_SCANCODE_P, 28);
+    registerNote(SDL_SCANCODE_LEFTBRACKET, 29);
+
+}
+
+void initKeyHandler() {
+    memset(keyHandler, 0, sizeof(KeyHandler*)*256);
+    keyHandler[SDL_SCANCODE_UP] = moveUp;
+    keyHandler[SDL_SCANCODE_DOWN] = moveDown;
+    keyHandler[SDL_SCANCODE_BACKSPACE] = deleteNote;
+    keyHandler[SDL_SCANCODE_DELETE] = deleteNote;
+    keyHandler[SDL_SCANCODE_HOME] = moveHome;
+    keyHandler[SDL_SCANCODE_END] = moveEnd;
+    keyHandler[SDL_SCANCODE_GRAVE] = increaseStepping;
+    keyHandler[SDL_SCANCODE_NONUSBACKSLASH] = noteOff;
+}
+
+
+int main(int argc, char* args[]) {
     SDL_Event event;
 
-    synth_play();
-
-    return 1;
+    memset(tracks, 127, sizeof(Track)*32);
+    initKeyHandler();
+    initNotes();
 
     if (!screen_init()) {
         screen_close();
         return 1;
     }
 
-    screenSurface = SDL_GetWindowSurface(window);
-    SDL_FillRect(screenSurface, NULL, SDL_MapRGB(screenSurface->format, 0xFF, 0xFF, 0xFF));
-    SDL_UpdateWindowSurface(window);
 
 
+    screen_setColumn(0, 64, tracks[0].notes);
+    screen_setColumn(1, 64, tracks[1].notes);
+    screen_setColumn(2, 64, tracks[2].notes);
+    screen_setColumn(3, 64, tracks[3].notes);
 
+    SDL_Keymod keymod;
     bool quit = false;
     /* Loop until an SDL_QUIT event is found */
     while( !quit ){
-
         /* Poll for events */
         while( SDL_PollEvent( &event ) ){
 
@@ -36,6 +175,13 @@ int main(int argc, char* args[]) {
             /* Keyboard event */
             /* Pass the event data onto PrintKeyInfo() */
             case SDL_KEYDOWN:
+                keymod = SDL_GetModState();
+                if (keyHandler[event.key.keysym.scancode] != NULL) {
+                    keyHandler[event.key.keysym.scancode](event.key.keysym.scancode, keymod);
+                }
+                printf("Key %d\n", event.key.keysym.scancode);
+
+                break;
             case SDL_KEYUP:
                 break;
 
@@ -49,6 +195,8 @@ int main(int argc, char* args[]) {
             }
 
         }
+        screen_setStepping(stepping);
+        screen_update();
     }
     screen_close();
     return 0;
