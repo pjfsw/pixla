@@ -22,6 +22,7 @@ typedef struct {
     Sint8 **mainColumn;
     Uint8 columnLength[COLUMNS];
     Uint8 rowOffset;
+    Uint8 selectedColumn;
     /* Status flags and counters */
     int stepping;
 } Screen;
@@ -43,7 +44,7 @@ void _screen_loadResources() {
 
 void _screen_initArrays() {
     for (int i = 0; i < 64; i++) {
-        sprintf(rowNumbers[i], "%02d", i+1);
+        sprintf(rowNumbers[i], "%02d", i);
     }
     char *noteText[] = {
             "C-","C#","D-","D#", "E-","F-","F#","G-","G#","A-","A#","B-"
@@ -169,6 +170,13 @@ void screen_setColumn(Uint8 column, Uint8 rows, Sint8 *mainColumn) {
     screen->columnLength[column] = rows;
 }
 
+void screen_setSelectedColumn(Uint8 column) {
+    if (column >= COLUMNS) {
+        return;
+    }
+    screen->selectedColumn = column;
+}
+
 void screen_setRowOffset(Sint8 rowOffset) {
     if (rowOffset < 0) {
         screen->rowOffset = 0;
@@ -196,6 +204,10 @@ int getTrackRowY(int row) {
     return  140+row*10;
 }
 
+int getColumnOffset(int column) {
+    return 56+column*40;
+}
+
 
 void _screen_renderColumns() {
     int editOffset = 8;
@@ -217,7 +229,7 @@ void _screen_renderColumns() {
                 Sint8 note = screen->mainColumn[x][offset];
                 if (note >-1) {
                     SDL_Rect pos = {
-                            .x=56+x*2*40,
+                            .x=getColumnOffset(x)*2,
                             .y=screenY*2,
                             .w=screen->noteWidth[note],
                             .h=screen->noteHeight[note]
@@ -236,6 +248,15 @@ void _screen_renderColumns() {
     };
     SDL_SetRenderDrawColor(screen->renderer, 255,0,255,100);
     SDL_RenderFillRect(screen->renderer, &pos);
+    SDL_SetRenderDrawColor(screen->renderer, 255,255,255,30);
+    SDL_Rect pos2 = {
+            .x=getColumnOffset(screen->selectedColumn)*2,
+            .y=getTrackRowY(editOffset)*2-1,
+            .w=48,
+            .h=18
+
+    };
+    SDL_RenderFillRect(screen->renderer, &pos2);
 }
 
 void screen_setStepping(int stepping) {

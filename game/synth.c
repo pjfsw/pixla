@@ -45,7 +45,7 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
     Sint8 *buffer = (Sint8*)stream;
 
     // 256 = full scale, 128 = half scale etc
-    Sint8 scaler =  (1 << (9 - synth->channels)) -  (8<<synth->channels);
+    Sint8 scaler =  (1 << (8 - synth->channels));
 
     for (int i = 0; i < 256; i++) {
         buffer[i] = 0;

@@ -83,6 +83,10 @@ void playNote(SDL_Scancode scancode,SDL_Keymod keymod) {
     moveDownSteps(stepping);
 }
 
+void skipRow(SDL_Scancode scancode,SDL_Keymod keymod) {
+    moveDownSteps(stepping);
+}
+
 void deleteNote(SDL_Scancode scancode, SDL_Keymod keymod) {
     tracks[currentTrack].notes[rowOffset] = NO_NOTE;
     moveDownSteps(stepping);
@@ -95,6 +99,22 @@ void noteOff(SDL_Scancode scancode, SDL_Keymod keymod) {
 
 void setOctave(SDL_Scancode scancode, SDL_Keymod keymod) {
     octave = scancode - SDL_SCANCODE_F1;
+}
+
+void previousColumn(SDL_Scancode scancode, SDL_Keymod keymod) {
+    if (currentTrack == 0) {
+        return;
+    }
+    currentTrack--;
+    screen_setSelectedColumn(currentTrack);
+}
+
+void nextColumn(SDL_Scancode scancode, SDL_Keymod keymod) {
+    if (currentTrack == CHANNELS-1) {
+        return;
+    }
+    currentTrack++;
+    screen_setSelectedColumn(currentTrack);
 }
 
 void registerNote(SDL_Scancode scancode, Sint8 note) {
@@ -160,6 +180,9 @@ void initKeyHandler() {
     keyHandler[SDL_SCANCODE_F4] = setOctave;
     keyHandler[SDL_SCANCODE_F5] = setOctave;
     keyHandler[SDL_SCANCODE_F6] = setOctave;
+    keyHandler[SDL_SCANCODE_LEFT] = previousColumn;
+    keyHandler[SDL_SCANCODE_RIGHT] = nextColumn;
+    keyHandler[SDL_SCANCODE_RETURN] = skipRow;
 }
 
 Uint32 getDelayFromBpm(int bpm) {
