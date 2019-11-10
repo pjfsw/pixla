@@ -86,7 +86,7 @@ void _screen_initArrays() {
 }
 
 bool screen_init() {
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) < 0) {
         return false;
     }
     if (TTF_Init() < 0) {

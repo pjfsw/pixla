@@ -23,16 +23,21 @@ KeyHandler keyHandler[256];
 Sint8 keyToNote[256];
 Uint8 stepping = 1;
 int bpm = 135;
-int trackPos = 63;
 Uint8 octave = 0;
+
+SDL_TimerID playbackTimerId = 0;
 
 void clearSong() {
     memset(tracks, NO_NOTE, sizeof(Track)*MAX_TRACKS);
 }
 
-void moveHome(SDL_Scancode scancode, SDL_Keymod keymod) {
+void moveToFirstRow() {
     rowOffset = 0;
     screen_setRowOffset(rowOffset);
+}
+
+void moveHome(SDL_Scancode scancode, SDL_Keymod keymod) {
+    moveToFirstRow();
 }
 
 void moveEnd(SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -60,6 +65,10 @@ void moveDownSteps(int steps) {
     screen_setRowOffset(rowOffset);
 }
 
+bool isEditMode() {
+    return playbackTimerId == 0;
+}
+
 void moveDown(SDL_Scancode scancode,SDL_Keymod keymod) {
     moveDownSteps(1);
 }
@@ -79,11 +88,21 @@ void increaseStepping(SDL_Scancode scancode,SDL_Keymod keymod) {
     printf("%d\n",keymod);
 }
 
-void playNote(SDL_Scancode scancode,SDL_Keymod keymod) {
+void playNote(Uint8 channel, Sint8 note) {
+    synth_setPwm(channel, 30, 5);
+    synth_noteTrigger(channel, note);
+}
+
+void playOrUpdateNote(SDL_Scancode scancode,SDL_Keymod keymod) {
     if (keyToNote[scancode] > -1) {
-        tracks[currentTrack].notes[rowOffset] = keyToNote[scancode] + 12 * octave;
+        Sint8 note = keyToNote[scancode] + 12 * octave;
+        if (isEditMode()) {
+            tracks[currentTrack].notes[rowOffset] = note;
+            moveDownSteps(stepping);
+        }
+        playNote(currentTrack, note);
+
     }
-    moveDownSteps(stepping);
 }
 
 void skipRow(SDL_Scancode scancode,SDL_Keymod keymod) {
@@ -91,13 +110,17 @@ void skipRow(SDL_Scancode scancode,SDL_Keymod keymod) {
 }
 
 void deleteNote(SDL_Scancode scancode, SDL_Keymod keymod) {
-    tracks[currentTrack].notes[rowOffset] = NO_NOTE;
-    moveDownSteps(stepping);
+    if (isEditMode()) {
+        tracks[currentTrack].notes[rowOffset] = NO_NOTE;
+        moveDownSteps(stepping);
+    }
 }
 
 void noteOff(SDL_Scancode scancode, SDL_Keymod keymod) {
-    tracks[currentTrack].notes[rowOffset] = NOTE_OFF;
-    moveDownSteps(stepping);
+    if (isEditMode()) {
+        tracks[currentTrack].notes[rowOffset] = NOTE_OFF;
+        moveDownSteps(stepping);
+    }
 }
 
 void setOctave(SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -122,7 +145,7 @@ void nextColumn(SDL_Scancode scancode, SDL_Keymod keymod) {
 
 void registerNote(SDL_Scancode scancode, Sint8 note) {
     keyToNote[scancode] = note;
-    keyHandler[scancode] = playNote;
+    keyHandler[scancode] = playOrUpdateNote;
 }
 
 bool loadSongWithName(char *name) {
@@ -187,6 +210,46 @@ void saveSong(SDL_Scancode scancode, SDL_Keymod keymod) {
     }
 }
 
+void stopPlayback() {
+    if (playbackTimerId != 0) {
+        SDL_RemoveTimer(playbackTimerId);
+        playbackTimerId = 0;
+    }
+}
+
+void stopSong(SDL_Scancode scancode, SDL_Keymod keymod) {
+    stopPlayback();
+    for (int i = 0; i < CHANNELS; i++) {
+        synth_noteOff(i);
+    }
+}
+
+Uint32 getDelayFromBpm(int bpm) {
+    return 15000/bpm;
+}
+
+Uint32 playCallback(Uint32 interval, void *param) {
+    for (int channel = 0; channel < CHANNELS; channel++) {
+        Sint8 note = tracks[channel].notes[rowOffset];
+
+        if (note == NOTE_OFF) {
+            synth_noteOff(channel);
+        } else if (note >= 0 && note < 97) {
+            playNote(channel, note);
+        }
+    }
+    screen_setRowOffset(rowOffset);
+    rowOffset = (rowOffset + 1) % 64;
+    return interval;
+}
+
+
+void playPattern(SDL_Scancode scancode, SDL_Keymod keymod) {
+    stopPlayback();
+    moveToFirstRow();
+    playbackTimerId = SDL_AddTimer(getDelayFromBpm(bpm), playCallback, NULL);
+};
+
 
 void initNotes() {
     memset(keyToNote, -1, sizeof(Sint8)*256);
@@ -249,25 +312,8 @@ void initKeyHandler() {
     keyHandler[SDL_SCANCODE_RIGHT] = nextColumn;
     keyHandler[SDL_SCANCODE_RETURN] = skipRow;
     keyHandler[SDL_SCANCODE_F12] = saveSong;
-}
-
-Uint32 getDelayFromBpm(int bpm) {
-    return 15000/bpm;
-}
-
-Uint32 playCallback(Uint32 interval, void *param) {
-    trackPos = (trackPos + 1) % 64;
-    for (int channel = 0; channel < CHANNELS; channel++) {
-        Sint8 note = tracks[channel].notes[trackPos];
-
-        if (note == NOTE_OFF) {
-            synth_noteOff(channel);
-        } else if (note >= 0 && note < 97) {
-            synth_setPwm(channel, 30, 5);
-            synth_noteTrigger(channel, note);
-        }
-    }
-    return interval;
+    keyHandler[SDL_SCANCODE_RCTRL] = playPattern;
+    keyHandler[SDL_SCANCODE_SPACE] = stopSong;
 }
 
 int main(int argc, char* args[]) {
@@ -306,7 +352,6 @@ int main(int argc, char* args[]) {
     bool quit = false;
     /* Loop until an SDL_QUIT event is found */
 
-    SDL_TimerID my_timer_id = SDL_AddTimer(getDelayFromBpm(bpm), playCallback, NULL);
 
     while( !quit ){
         /* Poll for events */
@@ -339,7 +384,7 @@ int main(int argc, char* args[]) {
         screen_setStepping(stepping);
         screen_update();
     }
-    SDL_RemoveTimer(my_timer_id);
+    stopPlayback();
     synth_close();
     screen_close();
     return 0;
