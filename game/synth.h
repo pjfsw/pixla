@@ -9,7 +9,9 @@ typedef enum {
     SQUARE_1,
     SQUARE_2,
     LOWPASS_SQUARE,
-    LOWPASS_SAW
+    LOWPASS_SAW,
+    ADDITIVE_PULSE,
+    NOISE
 } Waveform;
 
 

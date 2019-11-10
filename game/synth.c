@@ -12,12 +12,28 @@ typedef enum {
     OFF
 } Adsr;
 
-typedef struct {
+Uint16 additiveFilter;
+
+typedef struct _Channel Channel;
+
+/*
+ * Function to create a byte in the waveform
+ */
+typedef Sint8 (*GenerateWaveformFunc)(Uint8 offset);
+
+/*
+ * Function to generate a sample for the current time period and channel
+ */
+typedef Sint8 (*GetSampleFunc)(Channel *channel);
+
+typedef struct _Channel {
     Uint16 voiceFreq;
     Uint16 wavePos;
     Adsr adsr;
     Sint16 amplitude;
     Sint8 *wave;
+    GetSampleFunc sampleFunc;
+    Sint8 param1;
     Sint8 attack;
     Sint8 decay;
     Sint8 sustain;
@@ -39,10 +55,86 @@ typedef struct {
 
 Synth *synth = NULL;
 
+#define SINE_TABLE_BITSIZE 12
+#define SINE_TABLE_SIZE (1 << SINE_TABLE_BITSIZE)
+#define ADDITIVE_SHIFT (16-SINE_TABLE_BITSIZE)
+
+Sint8 sineTable[SINE_TABLE_SIZE];
+
+void _synth_updateAdsr(Channel *ch) {
+    switch(ch->adsr) {
+    case ATTACK:
+        if (ch->attack == 0) {
+            ch->amplitude = 32767;
+            ch->adsr = DECAY;
+        } else {
+            if (ch->amplitude == 0) {
+                ch->amplitude = 1;
+            }
+            ch->amplitude += synth->adTable[ch->attack];
+            if (ch->amplitude < 0) {
+                ch->amplitude = 32767;
+                ch->adsr = DECAY;
+            }
+        }
+        break;
+    case DECAY:
+        if (ch->decay == 0) {
+            ch->amplitude = ch->sustain << 8;
+            ch->adsr = SUSTAIN;
+        } else {
+            ch->amplitude -= synth->adTable[ch->decay];
+            if (ch->amplitude < (ch->sustain << 8)) {
+                ch->amplitude = ch->sustain << 8;
+                ch->adsr = SUSTAIN;
+            }
+        }
+        break;
+    case RELEASE:
+        if (ch->release == 0) {
+            ch->amplitude = 0;
+        } else if (ch->amplitude > 0) {
+            ch->amplitude -= synth->releaseTable[ch->release];
+            if (ch->amplitude < 0) {
+                ch->adsr = OFF;
+            }
+        }
+        break;
+    case OFF:
+    case SUSTAIN:
+        break;
+    }
+}
+
+Sint8 _synth_getSampleFromArray(Channel *ch) {
+    Sint8 sample = ch->wave[ch->wavePos >> 8];
+    return sample;
+}
+
+Sint8 _synth_getNoise(Channel *ch) {
+    return rand() >> 24;
+}
+
+Sint8 _synth_getAdditivePulse(Channel *ch) {
+    Sint16 sample = 0;
+
+
+    for (int i = 0; i < ch->param1; i++) {
+        int harmonic = i*2+1;
+        int amplitude = 256/harmonic;
+
+        Uint16 harmonicWavePos = harmonic * ch->wavePos;
+
+        sample +=  amplitude * sineTable[(harmonicWavePos >> ADDITIVE_SHIFT) % SINE_TABLE_SIZE] / 256;
+    }
+    return sample;
+}
 
 void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
     Synth *synth = (Synth*)userdata;
     Sint8 *buffer = (Sint8*)stream;
+
+    additiveFilter++;
 
     // 256 = full scale, 128 = half scale etc
     Sint8 scaler =  (1 << (8 - synth->channels));
@@ -54,52 +146,12 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
             Channel *ch = &synth->channelData[j];
 
             if (0 == i % 8) {
-                switch(ch->adsr) {
-                case ATTACK:
-                    if (ch->attack == 0) {
-                        ch->amplitude = 32767;
-                        ch->adsr = DECAY;
-                    } else {
-                        if (ch->amplitude == 0) {
-                            ch->amplitude = 1;
-                        }
-                        ch->amplitude += synth->adTable[ch->attack];
-                        if (ch->amplitude < 0) {
-                            ch->amplitude = 32767;
-                            ch->adsr = DECAY;
-                        }
-                    }
-                    break;
-                case DECAY:
-                    if (ch->decay == 0) {
-                        ch->amplitude = ch->sustain << 8;
-                        ch->adsr = SUSTAIN;
-                    } else {
-                        ch->amplitude -= synth->adTable[ch->decay];
-                        if (ch->amplitude < (ch->sustain << 8)) {
-                            ch->amplitude = ch->sustain << 8;
-                            ch->adsr = SUSTAIN;
-                        }
-                    }
-                    break;
-                case RELEASE:
-                    if (ch->release == 0) {
-                        ch->amplitude = 0;
-                    } else if (ch->amplitude > 0) {
-                        ch->amplitude -= synth->releaseTable[ch->release];
-                        if (ch->amplitude < 0) {
-                            ch->adsr = OFF;
-                        }
-                    }
-                    break;
-                case OFF:
-                case SUSTAIN:
-                    break;
-                }
+                _synth_updateAdsr(ch);
             }
 
+
             if (ch->adsr != OFF) {
-                Uint16 sample = ch->wave[ch->wavePos >> 8] * (ch->amplitude)/32768;
+                Sint16 sample = ch->sampleFunc(ch) * (ch->amplitude)/32768;
                 buffer[i] += sample * scaler / 256;
             }
 
@@ -117,9 +169,7 @@ Sint8 getSawAmplitude(Uint8 offset) {
     return offset-128;
 }
 
-typedef Sint8 (*GetSampleFunc)(Uint8 offset);
-
-void createFilteredBuffer(GetSampleFunc sampleFunc, Sint8* output, int filter) {
+void createFilteredBuffer(GenerateWaveformFunc sampleFunc, Sint8* output, int filter) {
     for (int i = 0; i < 256; i++) {
         Sint16 value = 0;
         if (filter == 0) {
@@ -136,6 +186,10 @@ void createFilteredBuffer(GetSampleFunc sampleFunc, Sint8* output, int filter) {
 
 
 void _synth_initAudioTables(Synth *synth) {
+    for (int i = 0; i < SINE_TABLE_SIZE; i++) {
+        sineTable[i] = 127 * sin(i * 6.283185 / SINE_TABLE_SIZE);
+    }
+
     for (int i = 0; i < 128; i++) {
         synth->squareWave2[i] = -128;
         synth->squareWave2[i+128] = 127;
@@ -164,6 +218,7 @@ void _synth_initChannels(Synth *synth) {
         synth->channelData[i].amplitude = 0;
         synth->channelData[i].adsr = OFF;
         synth->channelData[i].wave = synth->squareWave;
+        synth->channelData[i].sampleFunc = _synth_getSampleFromArray;
     }
 }
 
@@ -241,16 +296,28 @@ void synth_setChannel(Uint8 channel, Sint8 attack, Sint8 decay, Sint8 sustain, S
     switch (waveform) {
     case SQUARE_1:
         ch->wave = synth->squareWave;
+        ch->sampleFunc =  _synth_getSampleFromArray;
         break;
     case SQUARE_2:
         ch->wave = synth->squareWave2;
+        ch->sampleFunc =  _synth_getSampleFromArray;
         break;
     case LOWPASS_SQUARE:
         ch->wave = synth->lowpassWave;
+        ch->sampleFunc =  _synth_getSampleFromArray;
         break;
     case LOWPASS_SAW:
         ch->wave = synth->lowpassSaw;
+        ch->sampleFunc =  _synth_getSampleFromArray;
         break;
+    case ADDITIVE_PULSE:
+        ch->param1 = 20;
+        ch->sampleFunc = _synth_getAdditivePulse;
+        break;
+    case NOISE:
+        ch->sampleFunc = _synth_getNoise;
+        break;
+
     }
 }
 
@@ -271,52 +338,3 @@ void synth_noteOff(Uint8 channel) {
     synth->channelData[channel].adsr = RELEASE;
 }
 
-
-
-
-
-void synth_play() {
-    int channels  = 2;
-
-    Note song[2][32] = {
-            0,-2,12,-2,2,-2,14,-2,3,-2,15,-2,8,-2,20,-2,7,-2,19,-2,7,-2,19,-2,5,-2,17,-2,7,-2,19,-2,
-            24,-2,27,-1,29,-1,27,29,-1,31,29,27,29,-1,27,-2,24,-2,27,-1,29,-1,27,29,-1,31,29,27,29,-1,27,-2,
-    };
-    Sint8 transpose[2] = {5,17};
-
-    if (false == synth_init(channels)) {
-        synth_close();
-        return;
-    }
-
-    synth->channelData[0].attack = 0;
-    synth->channelData[0].decay = 60;
-    synth->channelData[0].sustain = 30;
-    synth->channelData[0].release = 30;
-    synth->channelData[0].wave = synth->lowpassWave;
-    synth->channelData[1].attack = 3;
-    synth->channelData[1].decay = 20;
-    synth->channelData[1].sustain = 20;
-    synth->channelData[1].release = 10;
-    synth->channelData[1].wave = synth->lowpassSaw;
-
-    for (int i = 0; i < 2; i++) {
-        for (int pos = 0; pos < sizeof(song)/(channels * sizeof(Note)); pos++) {
-            for (int channel = 0; channel < channels; channel++) {
-                Note note = song[channel][pos];
-                if (note.pitch == -1) {
-                    continue;
-                }
-                if (note.pitch == -2) {
-                    synth->channelData[channel].adsr = RELEASE;
-                    continue;
-                }
-                synth->channelData[channel].adsr = ATTACK;
-                synth->channelData[channel].amplitude = 0;
-                synth->channelData[channel].voiceFreq = frequencyTable[(note.pitch+transpose[channel]) % (sizeof(frequencyTable)/sizeof(Uint16))];
-            }
-            SDL_Delay(125); /* let the audio callback play some sound for 5 seconds. */
-        }
-    }
-    synth_close();
-}

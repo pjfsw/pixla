@@ -8,12 +8,14 @@
 #define SCREEN_WIDTH 800
 #define SCREEN_HEIGHT 600
 #define COLUMNS 5
+#define STATUS_ROW 130
 
 typedef struct {
     SDL_Window *window;
     SDL_Renderer *renderer;
     SDL_Texture *logo;
     SDL_Texture *noteTexture[128];
+    SDL_Texture *noteBeatTexture[128];
     int noteWidth[128];
     int noteHeight[128];
     TTF_Font *font;
@@ -27,12 +29,16 @@ typedef struct {
     int stepping;
 } Screen;
 
+SDL_Color noteBeatColor = {255,255,255};
+SDL_Color noteColor = {191,191,191};
+SDL_Color statusColor = {255,255,255};
+
 char rowNumbers[64][4];
 
 Screen *screen = NULL;
 
 void _screen_loadResources() {
-     screen->logo = IMG_LoadTexture(screen->renderer,"../game/icons8-music-100.png");
+     screen->logo = IMG_LoadTexture(screen->renderer,"../game/pixla.png");
      if (screen->logo != NULL) {
          SDL_QueryTexture(screen->logo, NULL, NULL, &screen->logo_w, &screen->logo_h);
      }
@@ -62,13 +68,18 @@ void _screen_initArrays() {
             sprintf(noteAndOctave, "NaN");
         }
 
-        SDL_Color color = {255,255,255};
-        SDL_Surface *text = TTF_RenderText_Solid(screen->font, noteAndOctave, color);
-        if (NULL != text ) {
-            screen->noteTexture[i] = SDL_CreateTextureFromSurface(screen->renderer, text);
-            screen->noteWidth[i] = text->w*2;
-            screen->noteHeight[i] = text->h*2;
-            SDL_FreeSurface(text);
+        SDL_Surface *text1 = TTF_RenderText_Solid(screen->font, noteAndOctave, noteColor);
+        SDL_Surface *text2 = TTF_RenderText_Solid(screen->font, noteAndOctave, noteBeatColor);
+
+        if (NULL != text1 ) {
+            screen->noteTexture[i] = SDL_CreateTextureFromSurface(screen->renderer, text1);
+            screen->noteWidth[i] = text1->w*2;
+            screen->noteHeight[i] = text1->h*2;
+            SDL_FreeSurface(text1);
+        }
+        if (NULL != text2) {
+            screen->noteBeatTexture[i] = SDL_CreateTextureFromSurface(screen->renderer, text2);
+            SDL_FreeSurface(text2);
         }
     }
 }
@@ -116,7 +127,9 @@ void screen_close() {
     if (NULL != screen) {
         for (int i = 0; i < 128; i++) {
             SDL_DestroyTexture(screen->noteTexture[i]);
+            SDL_DestroyTexture(screen->noteBeatTexture[i]);
             screen->noteTexture[i] = NULL;
+            screen->noteBeatTexture[i] = NULL;
         }
         if (NULL != screen->font) {
             TTF_CloseFont(screen->font);
@@ -141,13 +154,12 @@ void screen_close() {
     }
 }
 
-void screen_print(int x, int y, char* msg) {
+void screen_print(int x, int y, char* msg, SDL_Color *color) {
 
     if (screen->font == NULL) {
         return;
     }
-    SDL_Color color = {255,255,255};
-    SDL_Surface *text = TTF_RenderText_Solid(screen->font, msg, color);
+    SDL_Surface *text = TTF_RenderText_Solid(screen->font, msg, *color);
     if (NULL != text ) {
         SDL_Texture *texture = SDL_CreateTextureFromSurface(screen->renderer, text);
         SDL_Rect pos = {
@@ -220,7 +232,10 @@ void _screen_renderColumns() {
         int screenY = getTrackRowY(y);
 
         if (offset >= 0) {
-            screen_print(8, screenY, rowNumbers[offset]);
+            bool isBeat = (offset % 4) == 0;
+            screen_print(8, screenY, rowNumbers[offset],
+                    isBeat ? &noteBeatColor : &noteColor
+            );
 
             for (int x = 0; x < COLUMNS; x++) {
                 if (NULL == screen->mainColumn[x]) {
@@ -234,7 +249,12 @@ void _screen_renderColumns() {
                             .w=screen->noteWidth[note],
                             .h=screen->noteHeight[note]
                     };
-                    SDL_RenderCopy(screen->renderer, screen->noteTexture[note], NULL, &pos);
+                    SDL_RenderCopy(
+                            screen->renderer,
+                            isBeat ? screen->noteBeatTexture[note] : screen->noteTexture[note],
+                                    NULL,
+                                    &pos
+                    );
                 }
             }
         }
@@ -263,14 +283,20 @@ void screen_setStepping(int stepping) {
     screen->stepping = stepping;
 }
 
+void _screen_renderDivisions() {
+    SDL_SetRenderDrawColor(screen->renderer, 77,77,77,100);
+    SDL_RenderDrawLine(screen->renderer,0,2*STATUS_ROW+19, 2*SCREEN_WIDTH,2*STATUS_ROW+19);
+}
+
 void _screen_renderStatus() {
     char s[3];
     sprintf(s, "%d", screen->stepping);
-    screen_print(0, getTrackRowY(0), s);
+    screen_print(0, STATUS_ROW, s, &statusColor);
 }
 
 void screen_update() {
     SDL_RenderClear(screen->renderer);
+    _screen_renderDivisions();
     SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_ADD);
     _screen_renderLogo();
     _screen_renderColumns();

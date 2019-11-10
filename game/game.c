@@ -22,7 +22,7 @@ typedef void(*KeyHandler)(SDL_Scancode scancode, SDL_Keymod keymod);
 KeyHandler keyHandler[256];
 Sint8 keyToNote[256];
 Uint8 stepping = 1;
-int bpm = 120;
+int bpm = 135;
 int trackPos = 63;
 Uint8 octave = 0;
 
@@ -228,9 +228,9 @@ int main(int argc, char* args[]) {
     screen_setColumn(2, 64, tracks[2].notes);
     screen_setColumn(3, 64, tracks[3].notes);
 
-    synth_setChannel(0, 0, 30, 70, 20, SQUARE_1);
+    synth_setChannel(0, 0, 30, 70, 20, ADDITIVE_PULSE);
     synth_setChannel(1, 0, 30, 70, 20, SQUARE_2);
-    synth_setChannel(2, 0, 30, 70, 20, LOWPASS_SQUARE);
+    synth_setChannel(2, 0, 30, 70, 20, NOISE);
     synth_setChannel(3, 0, 30, 70, 20, LOWPASS_SAW);
 
     SDL_Keymod keymod;
