@@ -197,6 +197,7 @@ Uint32 playCallback(Uint32 interval, void *param) {
         if (note == NOTE_OFF) {
             synth_noteOff(channel);
         } else if (note >= 0 && note < 97) {
+            synth_setPwm(channel, 20, 3);
             synth_noteTrigger(channel, note);
         }
     }
@@ -228,8 +229,8 @@ int main(int argc, char* args[]) {
     screen_setColumn(2, 64, tracks[2].notes);
     screen_setColumn(3, 64, tracks[3].notes);
 
-    synth_setChannel(0, 0, 30, 70, 20, ADDITIVE_PULSE);
-    synth_setChannel(1, 0, 30, 70, 20, SQUARE_2);
+    synth_setChannel(0, 0, 30, 70, 20, PWM);
+    synth_setChannel(1, 0, 30, 70, 20, LOWPASS_PULSE);
     synth_setChannel(2, 0, 30, 70, 20, NOISE);
     synth_setChannel(3, 0, 30, 70, 20, LOWPASS_SAW);
 

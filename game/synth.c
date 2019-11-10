@@ -34,6 +34,8 @@ typedef struct _Channel {
     Sint8 *wave;
     GetSampleFunc sampleFunc;
     Sint8 param1;
+    Sint8 pwm;
+    Uint16 currentDutyCycle;
     Sint8 attack;
     Sint8 decay;
     Sint8 sustain;
@@ -42,10 +44,8 @@ typedef struct _Channel {
 
 typedef struct {
     Uint16 sampleFreq;
-    Sint8 squareWave[256];
-    Sint8 squareWave2[256];
-    Sint8 lowpassWave[256];
     Sint8 lowpassSaw[256];
+    Sint8 lowpassPulse[256];
     Sint16 adTable[128];
     Sint16 releaseTable[128];
     SDL_AudioDeviceID audio;
@@ -111,6 +111,15 @@ Sint8 _synth_getSampleFromArray(Channel *ch) {
     return sample;
 }
 
+Sint8 _synth_getPulse(Channel *ch) {
+    if (ch->currentDutyCycle < 0x200) {
+        return -128;
+    } else if (ch->currentDutyCycle > 0xfe00) {
+        return 127;
+    }
+    return ch->wavePos > ch->currentDutyCycle ? 127 : -128;
+}
+
 Sint8 _synth_getNoise(Channel *ch) {
     return rand() >> 24;
 }
@@ -147,6 +156,9 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
 
             if (0 == i % 8) {
                 _synth_updateAdsr(ch);
+                if (ch->pwm > 0) {
+                    ch->currentDutyCycle+=ch->pwm;
+                }
             }
 
 
@@ -190,21 +202,7 @@ void _synth_initAudioTables(Synth *synth) {
         sineTable[i] = 127 * sin(i * 6.283185 / SINE_TABLE_SIZE);
     }
 
-    for (int i = 0; i < 128; i++) {
-        synth->squareWave2[i] = -128;
-        synth->squareWave2[i+128] = 127;
-    }
-
-    for (int i = 0; i < 64; i++) {
-        //wave[i]=i-128;
-        synth->squareWave[i] = -128;
-        synth->squareWave[i+64] = -128;
-        synth->squareWave[i+128] = -128;
-        synth->squareWave[i+192] = 127;
-    }
-
-
-    createFilteredBuffer(getSquareAmplitude, synth->lowpassWave, 16);
+    createFilteredBuffer(getSquareAmplitude, synth->lowpassPulse, 16);
     createFilteredBuffer(getSawAmplitude, synth->lowpassSaw, 4);
 
     for (int i = 0; i < 128; i++) {
@@ -217,7 +215,7 @@ void _synth_initChannels(Synth *synth) {
     for (int i = 0; i < synth->channels; i++) {
         synth->channelData[i].amplitude = 0;
         synth->channelData[i].adsr = OFF;
-        synth->channelData[i].wave = synth->squareWave;
+        synth->channelData[i].wave = synth->lowpassPulse;
         synth->channelData[i].sampleFunc = _synth_getSampleFromArray;
     }
 }
@@ -282,6 +280,16 @@ typedef struct {
     Sint8 pitch;
 } Note;
 
+void synth_setPwm(Uint8 channel, Sint8 dutyCycle, Sint8 pwm) {
+    if (synth == NULL || channel >= synth->channels) {
+        return;
+    }
+    Channel *ch = &synth->channelData[channel];
+    if (dutyCycle >= 0) {
+        ch->currentDutyCycle = dutyCycle << 9;
+    }
+    ch->pwm = pwm;
+}
 
 void synth_setChannel(Uint8 channel, Sint8 attack, Sint8 decay, Sint8 sustain, Sint8 release, Waveform waveform) {
     if (synth == NULL || channel >= synth->channels) {
@@ -294,25 +302,23 @@ void synth_setChannel(Uint8 channel, Sint8 attack, Sint8 decay, Sint8 sustain, S
     ch->sustain = sustain;
     ch->release = release;
     switch (waveform) {
-    case SQUARE_1:
-        ch->wave = synth->squareWave;
-        ch->sampleFunc =  _synth_getSampleFromArray;
-        break;
-    case SQUARE_2:
-        ch->wave = synth->squareWave2;
-        ch->sampleFunc =  _synth_getSampleFromArray;
-        break;
-    case LOWPASS_SQUARE:
-        ch->wave = synth->lowpassWave;
-        ch->sampleFunc =  _synth_getSampleFromArray;
-        break;
     case LOWPASS_SAW:
         ch->wave = synth->lowpassSaw;
         ch->sampleFunc =  _synth_getSampleFromArray;
         break;
+    case LOWPASS_PULSE:
+        ch->wave = synth->lowpassPulse;
+        ch->sampleFunc =  _synth_getSampleFromArray;
+        break;
+
     case ADDITIVE_PULSE:
         ch->param1 = 20;
         ch->sampleFunc = _synth_getAdditivePulse;
+        break;
+    case PWM:
+        ch->currentDutyCycle = 64 << 9;
+        ch->pwm = 2;
+        ch->sampleFunc = _synth_getPulse;
         break;
     case NOISE:
         ch->sampleFunc = _synth_getNoise;
