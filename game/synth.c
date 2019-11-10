@@ -35,7 +35,7 @@ typedef struct _Channel {
     GetSampleFunc sampleFunc;
     Sint8 param1;
     Sint8 pwm;
-    Uint16 currentDutyCycle;
+    Uint16 dutyCycle;
     Sint8 attack;
     Sint8 decay;
     Sint8 sustain;
@@ -111,13 +111,18 @@ Sint8 _synth_getSampleFromArray(Channel *ch) {
     return sample;
 }
 
+Sint8 _synth_getPulseAtPos(Uint16 dutyCycle, Uint16 wavePos) {
+    return wavePos > dutyCycle ? 127 : -128;
+}
+
 Sint8 _synth_getPulse(Channel *ch) {
-    if (ch->currentDutyCycle < 0x200) {
-        return -128;
-    } else if (ch->currentDutyCycle > 0xfe00) {
-        return 127;
+    Uint16 dutyCycle = ch->dutyCycle;
+    Uint16 wavePos = ch->wavePos;
+    Sint16 sample = 0;
+    for (int i = 0; i < 2; i++) {
+        sample += _synth_getPulseAtPos(dutyCycle, wavePos+i);
     }
-    return ch->wavePos > ch->currentDutyCycle ? 127 : -128;
+    return sample/2;
 }
 
 Sint8 _synth_getNoise(Channel *ch) {
@@ -157,7 +162,7 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
             if (0 == i % 8) {
                 _synth_updateAdsr(ch);
                 if (ch->pwm > 0) {
-                    ch->currentDutyCycle+=ch->pwm;
+                    ch->dutyCycle+=ch->pwm;
                 }
             }
 
@@ -286,7 +291,7 @@ void synth_setPwm(Uint8 channel, Sint8 dutyCycle, Sint8 pwm) {
     }
     Channel *ch = &synth->channelData[channel];
     if (dutyCycle >= 0) {
-        ch->currentDutyCycle = dutyCycle << 9;
+        ch->dutyCycle = dutyCycle << 9;
     }
     ch->pwm = pwm;
 }
@@ -316,7 +321,7 @@ void synth_setChannel(Uint8 channel, Sint8 attack, Sint8 decay, Sint8 sustain, S
         ch->sampleFunc = _synth_getAdditivePulse;
         break;
     case PWM:
-        ch->currentDutyCycle = 64 << 9;
+        ch->dutyCycle = 64 << 9;
         ch->pwm = 2;
         ch->sampleFunc = _synth_getPulse;
         break;

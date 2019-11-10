@@ -197,7 +197,7 @@ Uint32 playCallback(Uint32 interval, void *param) {
         if (note == NOTE_OFF) {
             synth_noteOff(channel);
         } else if (note >= 0 && note < 97) {
-            synth_setPwm(channel, 20, 3);
+            synth_setPwm(channel, 20, 2);
             synth_noteTrigger(channel, note);
         }
     }
