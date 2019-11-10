@@ -5,8 +5,9 @@
 #include <SDL2/SDL_ttf.h>
 #include "screen.h"
 
-#define SCREEN_WIDTH 800
-#define SCREEN_HEIGHT 600
+#define SCREEN_WIDTH 400
+#define SCREEN_HEIGHT 300
+#define SCREEN_SCALING 2
 #define COLUMNS 5
 #define STATUS_ROW 130
 
@@ -14,6 +15,7 @@ typedef struct {
     SDL_Window *window;
     SDL_Renderer *renderer;
     SDL_Texture *logo;
+    SDL_Texture *piano;
     SDL_Texture *noteTexture[128];
     SDL_Texture *noteBeatTexture[128];
     int noteWidth[128];
@@ -27,7 +29,8 @@ typedef struct {
     Uint8 selectedColumn;
     /* Status flags and counters */
     char* statusMsg;
-    int stepping;
+    Uint8 stepping;
+    Uint8 octave;
     bool editMode;
 } Screen;
 
@@ -44,6 +47,8 @@ void _screen_loadResources() {
      if (screen->logo != NULL) {
          SDL_QueryTexture(screen->logo, NULL, NULL, &screen->logo_w, &screen->logo_h);
      }
+     screen->piano = IMG_LoadTexture(screen->renderer, "../game/piano.png");
+
      screen->font = TTF_OpenFont("../game/nesfont.fon", 8);
      if (screen->font == NULL) {
          fprintf(stderr, "Failed to load font\n");
@@ -75,8 +80,8 @@ void _screen_initArrays() {
 
         if (NULL != text1 ) {
             screen->noteTexture[i] = SDL_CreateTextureFromSurface(screen->renderer, text1);
-            screen->noteWidth[i] = text1->w*2;
-            screen->noteHeight[i] = text1->h*2;
+            screen->noteWidth[i] = text1->w;
+            screen->noteHeight[i] = text1->h;
             SDL_FreeSurface(text1);
         }
         if (NULL != text2) {
@@ -105,7 +110,7 @@ bool screen_init() {
     screen->window = SDL_CreateWindow(
             "Pixla",
             SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-            SCREEN_WIDTH, SCREEN_HEIGHT,
+            SCREEN_WIDTH * SCREEN_SCALING, SCREEN_HEIGHT * SCREEN_SCALING,
             SDL_WINDOW_SHOWN | SDL_WINDOW_ALWAYS_ON_TOP
     );
     if (NULL == screen->window) {
@@ -118,6 +123,7 @@ bool screen_init() {
         fprintf(stderr, "could not create renderer: %s\n", SDL_GetError());
         return false;
     }
+    SDL_RenderSetScale(screen->renderer, SCREEN_SCALING, SCREEN_SCALING);
 
     _screen_loadResources();
     _screen_initArrays();
@@ -165,10 +171,10 @@ void screen_print(int x, int y, char* msg, SDL_Color *color) {
     if (NULL != text ) {
         SDL_Texture *texture = SDL_CreateTextureFromSurface(screen->renderer, text);
         SDL_Rect pos = {
-                .x=x*2,
-                .y=y*2,
-                .w=text->w*2,
-                .h=text->h*2
+                .x=x,
+                .y=y,
+                .w=text->w,
+                .h=text->h
         };
         SDL_RenderCopy(screen->renderer, texture, NULL, &pos);
         SDL_FreeSurface(text);
@@ -205,10 +211,10 @@ void screen_setRowOffset(Sint8 rowOffset) {
 void _screen_renderLogo() {
     if (screen->logo != NULL) {
         SDL_Rect pos = {
-                .x=SCREEN_WIDTH-screen->logo_w*2,
-                .y=0,
-                .w=screen->logo_w*2,
-                .h=screen->logo_h*2
+                .x=SCREEN_WIDTH-screen->logo_w,
+                .y=2,
+                .w=screen->logo_w,
+                .h=screen->logo_h
         };
         SDL_RenderCopy(screen->renderer, screen->logo, NULL, &pos);
     }
@@ -219,7 +225,7 @@ int getTrackRowY(int row) {
 }
 
 int getColumnOffset(int column) {
-    return 56+column*40;
+    return 40+column*88;
 }
 
 void _screen_setEditColor() {
@@ -238,9 +244,8 @@ void _screen_renderColumns() {
 
         if (offset >= 0) {
             bool isBeat = (offset % 4) == 0;
-            screen_print(8, screenY, rowNumbers[offset],
-                    isBeat ? &noteBeatColor : &noteColor
-            );
+            SDL_Color *textColor = isBeat ? &noteBeatColor : &noteColor;
+            screen_print(8, screenY, rowNumbers[offset], textColor);
 
             for (int x = 0; x < COLUMNS; x++) {
                 if (NULL == screen->mainColumn[x]) {
@@ -249,8 +254,8 @@ void _screen_renderColumns() {
                 Sint8 note = screen->mainColumn[x][offset];
                 if (note >-1) {
                     SDL_Rect pos = {
-                            .x=getColumnOffset(x)*2,
-                            .y=screenY*2,
+                            .x=getColumnOffset(x),
+                            .y=screenY,
                             .w=screen->noteWidth[note],
                             .h=screen->noteHeight[note]
                     };
@@ -260,6 +265,8 @@ void _screen_renderColumns() {
                                     NULL,
                                     &pos
                     );
+                    screen_print(getColumnOffset(x)+32, screenY, "00", textColor);
+                    screen_print(getColumnOffset(x)+56, screenY, "00", textColor);
                 }
             }
         }
@@ -267,9 +274,9 @@ void _screen_renderColumns() {
 
     SDL_Rect pos = {
             .x=0,
-            .y=getTrackRowY(editOffset)*2-1,
+            .y=getTrackRowY(editOffset)-1,
             .w=SCREEN_WIDTH,
-            .h=18
+            .h=9
     };
 
     _screen_setEditColor();
@@ -278,22 +285,26 @@ void _screen_renderColumns() {
 
     SDL_SetRenderDrawColor(screen->renderer, 255,255,255,80);
     SDL_Rect pos2 = {
-            .x=getColumnOffset(screen->selectedColumn)*2,
-            .y=getTrackRowY(editOffset)*2-1,
-            .w=48,
-            .h=18
+            .x=getColumnOffset(screen->selectedColumn),
+            .y=getTrackRowY(editOffset)-1,
+            .w=24,
+            .h=9
 
     };
     SDL_RenderFillRect(screen->renderer, &pos2);
 }
 
-void screen_setStepping(int stepping) {
+void screen_setStepping(Uint8 stepping) {
     screen->stepping = stepping;
+}
+
+void screen_setOctave(Uint8 octave) {
+    screen->octave = octave;
 }
 
 void _screen_renderDivisions() {
     SDL_SetRenderDrawColor(screen->renderer, 77,77,77,255);
-    SDL_RenderDrawLine(screen->renderer,0,2*STATUS_ROW+19, 2*SCREEN_WIDTH,2*STATUS_ROW+19);
+    SDL_RenderDrawLine(screen->renderer,0,STATUS_ROW+8, SCREEN_WIDTH,STATUS_ROW+8);
 }
 
 void _screen_renderStatus() {
@@ -319,6 +330,19 @@ void _screen_renderStatus() {
         };
         SDL_RenderDrawRect(screen->renderer, &pos);
         SDL_RenderDrawRect(screen->renderer, &pos2);
+    }
+    for (int i = 0; i < 7; i++) {
+        SDL_Rect pos = {
+                .x=8+i*56,
+                .y=STATUS_ROW,
+                .w=56,
+                .h=8
+        };
+        SDL_RenderCopy(screen->renderer, screen->piano, NULL, &pos);
+        if (i == screen->octave) {
+            SDL_SetRenderDrawColor(screen->renderer, 255,255,255,100);
+            SDL_RenderFillRect(screen->renderer, &pos);
+        }
     }
 }
 

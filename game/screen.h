@@ -29,7 +29,9 @@ void screen_setColumn(Uint8 column, Uint8 rows, Sint8 *mainColumn);
 
 void screen_setSelectedColumn(Uint8 column);
 
-void screen_setStepping(int stepping);
+void screen_setStepping(Uint8 stepping);
+
+void screen_setOctave(Uint8 octave);
 
 void screen_setRowOffset(Sint8 rowOffset);
 

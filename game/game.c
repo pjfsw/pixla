@@ -116,6 +116,9 @@ void playNote(Uint8 channel, Sint8 note) {
 void playOrUpdateNote(SDL_Scancode scancode,SDL_Keymod keymod) {
     if (keyToNote[scancode] > -1) {
         Sint8 note = keyToNote[scancode] + 12 * octave;
+        if (note > 95) {
+            return;
+        }
         if (isEditMode()) {
             tracks[currentTrack].notes[rowOffset] = note;
             moveDownSteps(stepping);
@@ -126,7 +129,11 @@ void playOrUpdateNote(SDL_Scancode scancode,SDL_Keymod keymod) {
 }
 
 void skipRow(SDL_Scancode scancode,SDL_Keymod keymod) {
-    moveDownSteps(stepping);
+    if (isEditMode()) {
+        moveDownSteps(stepping);
+    } else {
+        synth_noteOff(currentTrack);
+    }
 }
 
 void deleteNote(SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -145,6 +152,7 @@ void noteOff(SDL_Scancode scancode, SDL_Keymod keymod) {
 
 void setOctave(SDL_Scancode scancode, SDL_Keymod keymod) {
     octave = scancode - SDL_SCANCODE_F1;
+    screen_setOctave(octave);
 }
 
 void previousColumn(SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -336,6 +344,7 @@ void initKeyHandler() {
     keyHandler[SDL_SCANCODE_F4] = setOctave;
     keyHandler[SDL_SCANCODE_F5] = setOctave;
     keyHandler[SDL_SCANCODE_F6] = setOctave;
+    keyHandler[SDL_SCANCODE_F7] = setOctave;
     keyHandler[SDL_SCANCODE_LEFT] = previousColumn;
     keyHandler[SDL_SCANCODE_RIGHT] = nextColumn;
     keyHandler[SDL_SCANCODE_RETURN] = skipRow;
