@@ -34,6 +34,9 @@ void screen_setStepping(int stepping);
 void screen_setRowOffset(Sint8 rowOffset);
 
 void screen_setStatusMessage(char* msg);
+
+void screen_setEditMode(bool isEditMode);
+
 /*
  * Update screen
  */

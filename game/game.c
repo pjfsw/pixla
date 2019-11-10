@@ -13,9 +13,16 @@ typedef struct {
     Sint8 notes[64];
 }  Track;
 
+typedef enum {
+    STOP,
+    EDIT,
+    PLAY
+} Mode;
+
 Track tracks[MAX_TRACKS];
 Sint8 rowOffset = 0;
 Uint8 currentTrack = 0;
+Mode mode = STOP;
 
 typedef void(*KeyHandler)(SDL_Scancode scancode, SDL_Keymod keymod);
 
@@ -57,6 +64,10 @@ void moveUp(SDL_Scancode scancode,SDL_Keymod keymod) {
     moveUpSteps(1);
 }
 
+void moveUpMany(SDL_Scancode scancode,SDL_Keymod keymod) {
+    moveUpSteps(16);
+}
+
 void moveDownSteps(int steps) {
     rowOffset+=steps;
     if (rowOffset > 63) {
@@ -65,8 +76,17 @@ void moveDownSteps(int steps) {
     screen_setRowOffset(rowOffset);
 }
 
+void moveDownMany(SDL_Scancode scancode,SDL_Keymod keymod) {
+    moveDownSteps(16);
+}
+
+void setMode(Mode modeToSet) {
+    mode = modeToSet;
+    screen_setEditMode(mode == EDIT);
+};
+
 bool isEditMode() {
-    return playbackTimerId == 0;
+    return mode == EDIT;
 }
 
 void moveDown(SDL_Scancode scancode,SDL_Keymod keymod) {
@@ -215,6 +235,11 @@ void stopPlayback() {
         SDL_RemoveTimer(playbackTimerId);
         playbackTimerId = 0;
     }
+    if (mode == STOP) {
+        setMode(EDIT);
+    } else {
+        setMode(STOP);
+    }
 }
 
 void stopSong(SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -248,6 +273,7 @@ void playPattern(SDL_Scancode scancode, SDL_Keymod keymod) {
     stopPlayback();
     moveToFirstRow();
     playbackTimerId = SDL_AddTimer(getDelayFromBpm(bpm), playCallback, NULL);
+    setMode(PLAY);
 };
 
 
@@ -296,6 +322,8 @@ void initKeyHandler() {
     memset(keyHandler, 0, sizeof(KeyHandler*)*256);
     keyHandler[SDL_SCANCODE_UP] = moveUp;
     keyHandler[SDL_SCANCODE_DOWN] = moveDown;
+    keyHandler[SDL_SCANCODE_PAGEUP] = moveUpMany;
+    keyHandler[SDL_SCANCODE_PAGEDOWN] = moveDownMany;
     keyHandler[SDL_SCANCODE_BACKSPACE] = deleteNote;
     keyHandler[SDL_SCANCODE_DELETE] = deleteNote;
     keyHandler[SDL_SCANCODE_HOME] = moveHome;

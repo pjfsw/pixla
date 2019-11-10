@@ -28,10 +28,11 @@ typedef struct {
     /* Status flags and counters */
     char* statusMsg;
     int stepping;
+    bool editMode;
 } Screen;
 
 SDL_Color noteBeatColor = {255,255,255};
-SDL_Color noteColor = {191,191,191};
+SDL_Color noteColor = {157,157,157};
 SDL_Color statusColor = {255,255,255};
 
 char rowNumbers[64][4];
@@ -221,6 +222,9 @@ int getColumnOffset(int column) {
     return 56+column*40;
 }
 
+void _screen_setEditColor() {
+    SDL_SetRenderDrawColor(screen->renderer, 255,0,255,100);
+}
 
 void _screen_renderColumns() {
     int editOffset = 8;
@@ -267,9 +271,12 @@ void _screen_renderColumns() {
             .w=SCREEN_WIDTH,
             .h=18
     };
-    SDL_SetRenderDrawColor(screen->renderer, 255,0,255,100);
+
+    _screen_setEditColor();
     SDL_RenderFillRect(screen->renderer, &pos);
-    SDL_SetRenderDrawColor(screen->renderer, 255,255,255,30);
+
+
+    SDL_SetRenderDrawColor(screen->renderer, 255,255,255,80);
     SDL_Rect pos2 = {
             .x=getColumnOffset(screen->selectedColumn)*2,
             .y=getTrackRowY(editOffset)*2-1,
@@ -285,7 +292,7 @@ void screen_setStepping(int stepping) {
 }
 
 void _screen_renderDivisions() {
-    SDL_SetRenderDrawColor(screen->renderer, 77,77,77,100);
+    SDL_SetRenderDrawColor(screen->renderer, 77,77,77,255);
     SDL_RenderDrawLine(screen->renderer,0,2*STATUS_ROW+19, 2*SCREEN_WIDTH,2*STATUS_ROW+19);
 }
 
@@ -296,10 +303,32 @@ void _screen_renderStatus() {
     if (screen->statusMsg != NULL) {
         screen_print(16, STATUS_ROW, screen->statusMsg, &statusColor);
     }
+    if (screen->editMode) {
+        _screen_setEditColor();
+        SDL_Rect pos = {
+                .x=0,
+                .y=0,
+                .w=SCREEN_WIDTH,
+                .h=SCREEN_HEIGHT
+        };
+        SDL_Rect pos2 = {
+                .x=1,
+                .y=1,
+                .w=SCREEN_WIDTH-2,
+                .h=SCREEN_HEIGHT-2
+        };
+        SDL_RenderDrawRect(screen->renderer, &pos);
+        SDL_RenderDrawRect(screen->renderer, &pos2);
+    }
 }
 
 void screen_setStatusMessage(char* msg) {
     screen->statusMsg = msg;
+}
+
+void screen_setEditMode(bool isEditMode) {
+    printf("editmode\n");
+    screen->editMode = isEditMode;
 }
 
 void screen_update() {
