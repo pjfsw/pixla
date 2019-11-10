@@ -26,6 +26,7 @@ typedef struct {
     Uint8 rowOffset;
     Uint8 selectedColumn;
     /* Status flags and counters */
+    char* statusMsg;
     int stepping;
 } Screen;
 
@@ -292,6 +293,13 @@ void _screen_renderStatus() {
     char s[3];
     sprintf(s, "%d", screen->stepping);
     screen_print(0, STATUS_ROW, s, &statusColor);
+    if (screen->statusMsg != NULL) {
+        screen_print(16, STATUS_ROW, screen->statusMsg, &statusColor);
+    }
+}
+
+void screen_setStatusMessage(char* msg) {
+    screen->statusMsg = msg;
 }
 
 void screen_update() {

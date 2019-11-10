@@ -7,13 +7,13 @@
 #define CHANNELS 4
 #define NOTE_OFF 126
 #define NO_NOTE 127
-
+#define MAX_TRACKS 32
 
 typedef struct {
     Sint8 notes[64];
 }  Track;
 
-Track tracks[32];
+Track tracks[MAX_TRACKS];
 Sint8 rowOffset = 0;
 Uint8 currentTrack = 0;
 
@@ -26,6 +26,9 @@ int bpm = 135;
 int trackPos = 63;
 Uint8 octave = 0;
 
+void clearSong() {
+    memset(tracks, NO_NOTE, sizeof(Track)*MAX_TRACKS);
+}
 
 void moveHome(SDL_Scancode scancode, SDL_Keymod keymod) {
     rowOffset = 0;
@@ -122,6 +125,67 @@ void registerNote(SDL_Scancode scancode, Sint8 note) {
     keyHandler[scancode] = playNote;
 }
 
+bool loadSongWithName(char *name) {
+    char parameter[20];
+    Uint32 address;
+    Uint32 value;
+
+    FILE *f = fopen(name, "r");
+    if (f == NULL) {
+        return false;
+    }
+    clearSong();
+    while (!feof(f)) {
+        if (3 == fscanf(f, "%s %04x %02x\n", parameter, &address, &value)) {
+            if (strcmp(parameter, "note") == 0) {
+                int track = address >> 8;
+                int note = address & 255;
+                if (track < MAX_TRACKS && note < 64) {
+                    tracks[track].notes[note] = value;
+                }
+            }
+        }
+
+    }
+    fclose(f);
+    return true;
+}
+
+
+bool saveSongWithName(char* name) {
+    FILE *f = fopen(name, "w");
+    if (f  == NULL) {
+        return false;
+    }
+    for (int track = 0; track < MAX_TRACKS; track++) {
+        for (int row = 0; row < 64; row++) {
+            if (tracks[track].notes[row] != NO_NOTE) {
+                Uint16  encodedNote = (track << 8) + row;
+                fprintf(f, "note %04x %02x\n", encodedNote, tracks[track].notes[row]);
+            }
+
+        }
+    }
+    fclose(f);
+    return true;
+}
+
+void loadSong(SDL_Scancode scancode, SDL_Keymod keymod) {
+    if (!loadSongWithName("song.pxm")) {
+        screen_setStatusMessage("Could not open song.pxm");
+    }
+
+}
+
+void saveSong(SDL_Scancode scancode, SDL_Keymod keymod) {
+    if (saveSongWithName("song.pxm")) {
+        screen_setStatusMessage("Successfully saved song.pxm");
+    } else {
+        screen_setStatusMessage("Could not save song.pxm");
+
+    }
+}
+
 
 void initNotes() {
     memset(keyToNote, -1, sizeof(Sint8)*256);
@@ -183,6 +247,7 @@ void initKeyHandler() {
     keyHandler[SDL_SCANCODE_LEFT] = previousColumn;
     keyHandler[SDL_SCANCODE_RIGHT] = nextColumn;
     keyHandler[SDL_SCANCODE_RETURN] = skipRow;
+    keyHandler[SDL_SCANCODE_F12] = saveSong;
 }
 
 Uint32 getDelayFromBpm(int bpm) {
@@ -207,9 +272,11 @@ Uint32 playCallback(Uint32 interval, void *param) {
 int main(int argc, char* args[]) {
     SDL_Event event;
 
-    memset(tracks, NO_NOTE, sizeof(Track)*32);
+    clearSong();
     initKeyHandler();
     initNotes();
+
+    loadSongWithName("music.pxm");
 
     if (!synth_init(CHANNELS)) {
         synth_close();
