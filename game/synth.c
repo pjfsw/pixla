@@ -119,10 +119,11 @@ Sint8 _synth_getPulse(Channel *ch) {
     Uint16 dutyCycle = ch->dutyCycle;
     Uint16 wavePos = ch->wavePos;
     Sint16 sample = 0;
-    for (int i = 0; i < 2; i++) {
+    /*for (int i = 0; i < 2; i++) {
         sample += _synth_getPulseAtPos(dutyCycle, wavePos+i);
     }
-    return sample/2;
+    return sample/2;*/
+    return _synth_getPulseAtPos(dutyCycle, wavePos);
 }
 
 Sint8 _synth_getNoise(Channel *ch) {

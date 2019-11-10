@@ -139,6 +139,7 @@ bool loadSongWithName(char *name) {
         if (3 == fscanf(f, "%s %04x %02x\n", parameter, &address, &value)) {
             if (strcmp(parameter, "note") == 0) {
                 int track = address >> 8;
+                printf("Track %d\n", track);
                 int note = address & 255;
                 if (track < MAX_TRACKS && note < 64) {
                     tracks[track].notes[note] = value;
@@ -262,7 +263,7 @@ Uint32 playCallback(Uint32 interval, void *param) {
         if (note == NOTE_OFF) {
             synth_noteOff(channel);
         } else if (note >= 0 && note < 97) {
-            synth_setPwm(channel, 20, 2);
+            synth_setPwm(channel, 30, 5);
             synth_noteTrigger(channel, note);
         }
     }
@@ -276,7 +277,7 @@ int main(int argc, char* args[]) {
     initKeyHandler();
     initNotes();
 
-    loadSongWithName("music.pxm");
+    loadSongWithName("song.pxm");
 
     if (!synth_init(CHANNELS)) {
         synth_close();
