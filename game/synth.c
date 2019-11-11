@@ -164,8 +164,7 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
 
     synth->additiveFilter++;
 
-    // 256 = full scale, 128 = half scale etc
-    Sint8 scaler =  (1 << (8 - synth->channels));
+    Sint8 scaler = 100/synth->channels;
 
     for (int i = 0; i < len; i++) {
         Sint16 output = 0;
@@ -183,12 +182,12 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
 
             if (ch->adsr != OFF) {
                 Sint16 sample = ch->sampleFunc(ch) * ch->amplitude/32768;
-                output += sample * scaler;
+                output += sample;
             }
 
             ch->wavePos += (65536 * ch->voiceFreq) / synth->sampleFreq;
         }
-        buffer[i] = output/256;
+        buffer[i] = output * scaler / 128;
 
     }
 }
@@ -362,12 +361,6 @@ void synth_noteOff(Synth *synth, Uint8 channel) {
 }
 
 Uint8 streamDebug[256];
-/*
-Sint8* synth_getTable(Synth *synth) {
-    _synth_processBuffer(synth, streamDebug, 256);
-
-    return streamDebug;
-}*/
 
 void _synth_printChannel(Channel *channel) {
     char *adsrText;
@@ -392,7 +385,7 @@ void _synth_printChannel(Channel *channel) {
 }
 
 Uint32 testSamples=0;
-int testNumberOfChannels=3;
+int testNumberOfChannels=5;
 
 void _synth_testRunBuffer(Synth *testSynth) {
     int bufSize = 64;
@@ -453,11 +446,18 @@ void _synth_testNoteOn(Synth *testSynth) {
     }
 }
 
+void _synth_testNoteOff(Synth *testSynth) {
+    printf("+ NOTE OFF \n");
+    for (int i = 0; i < testNumberOfChannels; i++) {
+        synth_noteOff(testSynth, i);
+    }
+}
+
 
 void _synth_runTests(Synth *testSynth) {
     printf("\n");
     for (int i = 0; i < testNumberOfChannels; i++) {
-        _synth_testInitChannel(testSynth, i, 0, 0, 127, 0);
+        _synth_testInitChannel(testSynth, i, 10, 20, 63, 30);
         _synth_printChannel(&testSynth->channelData[i]);
     }
     _synth_testRunBuffer(testSynth);
@@ -466,7 +466,12 @@ void _synth_runTests(Synth *testSynth) {
         _synth_printChannel(&testSynth->channelData[i]);
     }
     testSamples = 0;
-    while (testSamples < 44100) {
+    while (testSamples < 22100) {
+        _synth_testRunBuffer(testSynth);
+    }
+    _synth_testNoteOff(testSynth);
+    testSamples = 0;
+    while (testSamples < 22100) {
         _synth_testRunBuffer(testSynth);
     }
 
