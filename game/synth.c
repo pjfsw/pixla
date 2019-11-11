@@ -136,11 +136,6 @@ Sint8 _synth_getPulseAtPos(Uint16 dutyCycle, Uint16 wavePos) {
 Sint8 _synth_getPulse(Channel *ch) {
     Uint16 dutyCycle = ch->dutyCycle;
     Uint16 wavePos = ch->wavePos;
-    Sint16 sample = 0;
-    /*for (int i = 0; i < 2; i++) {
-        sample += _synth_getPulseAtPos(dutyCycle, wavePos+i);
-    }
-    return sample/2;*/
     return _synth_getPulseAtPos(dutyCycle, wavePos);
 }
 
@@ -172,7 +167,7 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
     // 256 = full scale, 128 = half scale etc
     Sint8 scaler =  (1 << (8 - synth->channels));
 
-    for (int i = 0; i < 256; i++) {
+    for (int i = 0; i < len; i++) {
         Sint16 output = 0;
 
         for (int j = 0; j < synth->channels; j++) {
@@ -273,8 +268,8 @@ Synth* synth_init(Uint8 channels) {
         fprintf(stderr, "Failed to open audio due to %s\n", SDL_GetError());
         synth_close(synth);
         return NULL;
-    } else {
-        fprintf(stderr, "Freq %d channels %d format %04x\n", have.freq, have.channels, have.format);
+    /*} else {
+        fprintf(stderr, "Freq %d channels %d format %04x\n", have.freq, have.channels, have.format);*/
     }
     if (have.format != want.format) { /* we let this one thing change. */
         SDL_Log("We didn't get our audio format.");
@@ -367,9 +362,126 @@ void synth_noteOff(Synth *synth, Uint8 channel) {
 }
 
 Uint8 streamDebug[256];
-
+/*
 Sint8* synth_getTable(Synth *synth) {
     _synth_processBuffer(synth, streamDebug, 256);
 
     return streamDebug;
+}*/
+
+void _synth_printChannel(Channel *channel) {
+    char *adsrText;
+    switch (channel->adsr) {
+    case ATTACK:
+        adsrText = "Attack";
+        break;
+    case DECAY:
+        adsrText = "Decay";
+        break;
+    case SUSTAIN:
+        adsrText = "Sustain";
+        break;
+    case RELEASE:
+        adsrText = "Release";
+        break;
+    case OFF:
+        adsrText = "Off";
+        break;
+    }
+    printf("? Amplitude: %d, ADSR: %s, ADSR Pos: %d\n", channel->amplitude, adsrText, channel->amplitude);
+}
+
+Uint32 testSamples=0;
+int testNumberOfChannels=3;
+
+void _synth_testRunBuffer(Synth *testSynth) {
+    int bufSize = 64;
+    Uint8 buf[bufSize];
+    _synth_processBuffer(testSynth, buf, bufSize);
+
+    Sint8 *sbuf = (Sint8*)buf;
+
+    Sint8 high = -128;
+    Sint8 low = 127;
+
+    for (int i = 0; i < bufSize; i++) {
+        if (sbuf[i] < low) {
+            low = sbuf[i];
+        }
+        if (sbuf[i] > high) {
+            high = sbuf[i];
+        }
+    }
+
+    double t = testSamples / (double)44100;
+    printf("%.2fs ", t);
+    testSamples += bufSize;
+
+    for (int i = -64; i < 64; i++) {
+        if (i < (low/2) || i > (high/2)) {
+            if (i == 0) {
+                printf("|");
+            } else {
+                printf(".");
+            }
+        } else {
+            printf("X");
+        }
+    }
+    printf("[% 3d..% 3d]\n", low,high);
+
+
+    /*for (int i = 0; i < sizeof(buf)/(16*sizeof(Uint8)); i++) {
+        printf("? %02x: ", (i*16));
+        for (int j = 0; j < 16; j++) {
+            printf("%02x ", buf[i*16+j]);
+        }
+        printf("\n");
+    }*/
+
+}
+
+void _synth_testInitChannel(Synth *testSynth,int channel,  Sint8 attack, Sint8 decay, Sint8 sustain, Sint8 release) {
+    printf("+ Ch: %d A: %d D: %d S: %d R: %d\n", channel, attack, decay, sustain, release);
+    synth_setChannel(testSynth, channel, attack, decay, sustain, release, PWM);
+}
+
+void _synth_testNoteOn(Synth *testSynth) {
+    printf("+ NOTE TRIGGER (24)\n");
+    for (int i = 0; i < testNumberOfChannels; i++) {
+        synth_noteTrigger(testSynth, i, 24);
+    }
+}
+
+
+void _synth_runTests(Synth *testSynth) {
+    printf("\n");
+    for (int i = 0; i < testNumberOfChannels; i++) {
+        _synth_testInitChannel(testSynth, i, 0, 0, 127, 0);
+        _synth_printChannel(&testSynth->channelData[i]);
+    }
+    _synth_testRunBuffer(testSynth);
+    _synth_testNoteOn(testSynth);
+    for (int i = 0; i < testNumberOfChannels; i++) {
+        _synth_printChannel(&testSynth->channelData[i]);
+    }
+    testSamples = 0;
+    while (testSamples < 44100) {
+        _synth_testRunBuffer(testSynth);
+    }
+
+}
+
+void synth_test() {
+    Synth *testSynth = synth_init(testNumberOfChannels);
+    if (testSynth == NULL) {
+        fprintf(stderr, "Synth test failed to start\n");
+        return;
+    }
+    printf("======================TEST OF %d CHANNELS!========================\n", testNumberOfChannels);
+    SDL_PauseAudioDevice(testSynth->audio, 1); /* sop audio playing. */
+    _synth_runTests(testSynth);
+    printf("\n");
+    SDL_PauseAudioDevice(testSynth->audio, 0); /* start audio playing. */
+    synth_close(testSynth);
 }

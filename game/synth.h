@@ -17,9 +17,12 @@ typedef enum {
 
 Synth *synth_init(Uint8 channels);
 
+/**
+ * Initialise channel with ADSR and waveform parameters
+ */
 void synth_setChannel(Synth *synth, Uint8 channel, Sint8 attack, Sint8 decay, Sint8 sustain, Sint8 release, Waveform waveform);
 
-/*
+/**
  * Set the Pulse Width Modulation setting of a channel
  */
 void synth_setPwm(Synth* synth, Uint8 channel, Sint8 dutyCycle, Sint8 pwm);
@@ -30,10 +33,15 @@ void synth_noteOff(Synth *synth, Uint8 channel);
 
 void synth_noteTrigger(Synth *synth, Uint8 channel, Sint8 note);
 
-Sint8* synth_getTable(Synth *synth);
+/* Sint8* synth_getTable(Synth *synth); */
 
 void synth_close(Synth *synth);
 
 void synth_play(Synth *synth);
+
+/**
+ * Perform tests of synth functions and print out responses
+ */
+void synth_test();
 
 #endif /* SYNTH_H_ */
