@@ -54,7 +54,7 @@ typedef struct _Synth {
     Sint8 lowpassSaw[256];
     Sint8 lowpassPulse[256];
     Sint16 adTable[128];
-    Sint8 releaseTable[128];
+    Uint8 releaseTable[128];
     SDL_AudioDeviceID audio;
     Channel* channelData;
     Uint16 additiveFilter;
@@ -68,6 +68,7 @@ typedef struct _Synth {
 Sint8 sineTable[SINE_TABLE_SIZE];
 
 void _synth_updateAdsr(Synth *synth, Channel *ch) {
+
     switch(ch->adsr) {
     case ATTACK:
         if (ch->attack == 0) {
@@ -100,9 +101,9 @@ void _synth_updateAdsr(Synth *synth, Channel *ch) {
         if (ch->release == 0) {
             ch->amplitude = 0;
             ch->adsr = OFF;
-        } else if (ch->adsrPos < 32767) {
-            Uint8 weight = ch->adsrPos & 0xff;
-            int tableIndex = ch->adsrPos >> 8;
+        } else if (ch->adsrPos >= 0) {
+            int tableIndex = ch->adsrPos/256;
+
             /*Sint16 r1 = synth->releaseTable[tableIndex] * weight;
             Sint16 r2;
             if (tableIndex < 127) {
@@ -112,7 +113,7 @@ void _synth_updateAdsr(Synth *synth, Channel *ch) {
             };*/
             //ch->amplitude = ch->sustain * (r1+r2)/512;
             ch->amplitude = ch->sustain * synth->releaseTable[tableIndex];
-            ch->adsrPos++;
+            ch->adsrPos += 129-ch->release;
         } else {
             ch->amplitude = 0;
             ch->adsr = OFF;
@@ -164,7 +165,7 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
 
     synth->additiveFilter++;
 
-    Sint8 scaler = 100/synth->channels;
+    Sint8 scaler = 64/synth->channels;
 
     for (int i = 0; i < len; i++) {
         Sint16 output = 0;
@@ -225,7 +226,11 @@ void _synth_initAudioTables(Synth *synth) {
 
     for (int i = 0; i < 128; i++) {
         synth->adTable[i] =  4096/(2*i+1);
-        synth->releaseTable[i] = 128-i;
+        //synth->releaseTable[i] = 255-i*2;
+        synth->releaseTable[i] = 255- (float)22.5 * sqrt(i);
+    }
+    for (int i = 0; i < 128; i++) {
+        printf("%d = %d\n", i, synth->releaseTable[i]);
     }
 }
 
@@ -457,7 +462,7 @@ void _synth_testNoteOff(Synth *testSynth) {
 void _synth_runTests(Synth *testSynth) {
     printf("\n");
     for (int i = 0; i < testNumberOfChannels; i++) {
-        _synth_testInitChannel(testSynth, i, 10, 20, 63, 30);
+        _synth_testInitChannel(testSynth, i, 10, 20, 100, 120);
         _synth_printChannel(&testSynth->channelData[i]);
     }
     _synth_testRunBuffer(testSynth);
@@ -471,7 +476,7 @@ void _synth_runTests(Synth *testSynth) {
     }
     _synth_testNoteOff(testSynth);
     testSamples = 0;
-    while (testSamples < 22100) {
+    while (testSamples < 44100) {
         _synth_testRunBuffer(testSynth);
     }
 

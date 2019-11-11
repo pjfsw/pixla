@@ -365,8 +365,8 @@ int main(int argc, char* args[]) {
 
     Synth *synth;
 
-    synth_test();
-    return 0;
+    //synth_test();
+    //return 0;
 
     if (NULL == (synth = synth_init(CHANNELS))) {
         return 1;
@@ -384,10 +384,10 @@ int main(int argc, char* args[]) {
     screen_setColumn(2, 64, tracks[2].notes);
     screen_setColumn(3, 64, tracks[3].notes);
 
-    synth_setChannel(synth, 0, 0, 20, 60, 20, PWM);
-    synth_setChannel(synth, 1, 19, 30, 70, 50, LOWPASS_PULSE);
+    synth_setChannel(synth, 0, 0, 20, 60, 90, PWM);
+    synth_setChannel(synth, 1, 19, 30, 70, 100, LOWPASS_PULSE);
     synth_setChannel(synth, 2, 0, 20, 40, 50, NOISE);
-    synth_setChannel(synth, 3, 0, 50, 40, 50, LOWPASS_SAW);
+    synth_setChannel(synth, 3, 0, 50, 40, 100, LOWPASS_SAW);
 
     //screen_setTableToShow(synth_getTable(), 256);
     SDL_Keymod keymod;
@@ -425,6 +425,7 @@ int main(int argc, char* args[]) {
         }
         screen_setStepping(stepping);
         screen_update();
+        SDL_Delay(5);
     }
     stopPlayback();
     synth_close(synth);
