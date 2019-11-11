@@ -39,6 +39,7 @@ void screen_setStatusMessage(char* msg);
 
 void screen_setEditMode(bool isEditMode);
 
+void screen_setTableToShow(Sint8 *table, Uint8 elements);
 /*
  * Update screen
  */

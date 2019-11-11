@@ -23,6 +23,9 @@ typedef struct {
     TTF_Font *font;
     int logo_w;
     int logo_h;
+    Sint8 *tableToShow;
+    Sint16 tableToShowCount;
+
     Sint8 **mainColumn;
     Uint8 columnLength[COLUMNS];
     Uint8 rowOffset;
@@ -32,13 +35,13 @@ typedef struct {
     Uint8 stepping;
     Uint8 octave;
     bool editMode;
+    char rowNumbers[64][4];
 } Screen;
 
 SDL_Color noteBeatColor = {255,255,255};
 SDL_Color noteColor = {157,157,157};
 SDL_Color statusColor = {255,255,255};
 
-char rowNumbers[64][4];
 
 Screen *screen = NULL;
 
@@ -57,7 +60,7 @@ void _screen_loadResources() {
 
 void _screen_initArrays() {
     for (int i = 0; i < 64; i++) {
-        sprintf(rowNumbers[i], "%02d", i);
+        sprintf(screen->rowNumbers[i], "%02d", i);
     }
     char *noteText[] = {
             "C-","C#","D-","D#", "E-","F-","F#","G-","G#","A-","A#","B-"
@@ -207,6 +210,37 @@ void screen_setRowOffset(Sint8 rowOffset) {
     }
 }
 
+int getTrackRowY(int row) {
+    return  140+row*10;
+}
+
+int getColumnOffset(int column) {
+    return 40+column*88;
+}
+
+void screen_setStepping(Uint8 stepping) {
+    screen->stepping = stepping;
+}
+
+void screen_setOctave(Uint8 octave) {
+    screen->octave = octave;
+}
+
+
+void screen_setStatusMessage(char* msg) {
+    screen->statusMsg = msg;
+}
+
+void screen_setEditMode(bool isEditMode) {
+    screen->editMode = isEditMode;
+}
+
+void screen_setTableToShow(Sint8 *table, Uint8 elements) {
+    screen->tableToShow = table;
+    screen->tableToShowCount = elements;
+
+}
+
 
 void _screen_renderLogo() {
     if (screen->logo != NULL) {
@@ -218,14 +252,6 @@ void _screen_renderLogo() {
         };
         SDL_RenderCopy(screen->renderer, screen->logo, NULL, &pos);
     }
-}
-
-int getTrackRowY(int row) {
-    return  140+row*10;
-}
-
-int getColumnOffset(int column) {
-    return 40+column*88;
 }
 
 void _screen_setEditColor() {
@@ -245,7 +271,7 @@ void _screen_renderColumns() {
         if (offset >= 0) {
             bool isBeat = (offset % 4) == 0;
             SDL_Color *textColor = isBeat ? &noteBeatColor : &noteColor;
-            screen_print(8, screenY, rowNumbers[offset], textColor);
+            screen_print(8, screenY, screen->rowNumbers[offset], textColor);
 
             for (int x = 0; x < COLUMNS; x++) {
                 if (NULL == screen->mainColumn[x]) {
@@ -294,13 +320,6 @@ void _screen_renderColumns() {
     SDL_RenderFillRect(screen->renderer, &pos2);
 }
 
-void screen_setStepping(Uint8 stepping) {
-    screen->stepping = stepping;
-}
-
-void screen_setOctave(Uint8 octave) {
-    screen->octave = octave;
-}
 
 void _screen_renderDivisions() {
     SDL_SetRenderDrawColor(screen->renderer, 77,77,77,255);
@@ -346,13 +365,20 @@ void _screen_renderStatus() {
     }
 }
 
-void screen_setStatusMessage(char* msg) {
-    screen->statusMsg = msg;
-}
+void _screen_renderGraphs() {
+    if (screen->tableToShow != NULL) {
+        SDL_Rect pos = {
+                .x=10,
+                .y=2,
+                .w=130,
+                .h=128
+        };
+        SDL_RenderDrawRect(screen->renderer, &pos);
+        for (int i = 0; i < screen->tableToShowCount; i++) {
+            SDL_RenderDrawPoint(screen->renderer, i+pos.x+1, (pos.y+pos.h)-(screen->tableToShow[i]));
+        }
 
-void screen_setEditMode(bool isEditMode) {
-    printf("editmode\n");
-    screen->editMode = isEditMode;
+    }
 }
 
 void screen_update() {
@@ -362,6 +388,8 @@ void screen_update() {
     _screen_renderLogo();
     _screen_renderColumns();
     _screen_renderStatus();
+    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
+    _screen_renderGraphs();
     SDL_SetRenderDrawColor(screen->renderer, 0,0,0,0);
     SDL_RenderPresent(screen->renderer);
 }

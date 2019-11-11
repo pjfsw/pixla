@@ -12,7 +12,6 @@ typedef enum {
     OFF
 } Adsr;
 
-Uint16 additiveFilter;
 
 typedef struct _Channel Channel;
 
@@ -26,6 +25,10 @@ typedef Sint8 (*GenerateWaveformFunc)(Uint8 offset);
  */
 typedef Sint8 (*GetSampleFunc)(Channel *channel);
 
+
+/*
+ * Definition of an oscillator channel
+ */
 typedef struct _Channel {
     Uint16 voiceFreq;
     Uint16 wavePos;
@@ -36,24 +39,27 @@ typedef struct _Channel {
     Sint8 param1;
     Sint8 pwm;
     Uint16 dutyCycle;
+    Sint16 adsrPos;
     Sint8 attack;
     Sint8 decay;
     Sint8 sustain;
     Sint8 release;
 } Channel;
 
-typedef struct {
+/*
+ * Definition of the synth
+ */
+typedef struct _Synth {
     Uint16 sampleFreq;
     Sint8 lowpassSaw[256];
     Sint8 lowpassPulse[256];
     Sint16 adTable[128];
-    Sint16 releaseTable[128];
+    Sint8 releaseTable[128];
     SDL_AudioDeviceID audio;
     Channel* channelData;
+    Uint16 additiveFilter;
     Uint8 channels;
 } Synth;
-
-Synth *synth = NULL;
 
 #define SINE_TABLE_BITSIZE 12
 #define SINE_TABLE_SIZE (1 << SINE_TABLE_BITSIZE)
@@ -61,7 +67,7 @@ Synth *synth = NULL;
 
 Sint8 sineTable[SINE_TABLE_SIZE];
 
-void _synth_updateAdsr(Channel *ch) {
+void _synth_updateAdsr(Synth *synth, Channel *ch) {
     switch(ch->adsr) {
     case ATTACK:
         if (ch->attack == 0) {
@@ -93,11 +99,23 @@ void _synth_updateAdsr(Channel *ch) {
     case RELEASE:
         if (ch->release == 0) {
             ch->amplitude = 0;
-        } else if (ch->amplitude > 0) {
-            ch->amplitude -= synth->releaseTable[ch->release];
-            if (ch->amplitude < 0) {
-                ch->adsr = OFF;
-            }
+            ch->adsr = OFF;
+        } else if (ch->adsrPos < 32767) {
+            Uint8 weight = ch->adsrPos & 0xff;
+            int tableIndex = ch->adsrPos >> 8;
+            /*Sint16 r1 = synth->releaseTable[tableIndex] * weight;
+            Sint16 r2;
+            if (tableIndex < 127) {
+                r2 = synth->releaseTable[tableIndex+1] * weight;
+            } else {
+                r2 = 0;
+            };*/
+            //ch->amplitude = ch->sustain * (r1+r2)/512;
+            ch->amplitude = ch->sustain * synth->releaseTable[tableIndex];
+            ch->adsrPos++;
+        } else {
+            ch->amplitude = 0;
+            ch->adsr = OFF;
         }
         break;
     case OFF:
@@ -149,19 +167,19 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
     Synth *synth = (Synth*)userdata;
     Sint8 *buffer = (Sint8*)stream;
 
-    additiveFilter++;
+    synth->additiveFilter++;
 
     // 256 = full scale, 128 = half scale etc
     Sint8 scaler =  (1 << (8 - synth->channels));
 
     for (int i = 0; i < 256; i++) {
-        buffer[i] = 0;
+        Sint16 output = 0;
 
         for (int j = 0; j < synth->channels; j++) {
             Channel *ch = &synth->channelData[j];
 
-            if (0 == i % 8) {
-                _synth_updateAdsr(ch);
+            if (0 == i % 16) {
+                _synth_updateAdsr(synth, ch);
                 if (ch->pwm > 0) {
                     ch->dutyCycle+=ch->pwm;
                 }
@@ -169,12 +187,13 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
 
 
             if (ch->adsr != OFF) {
-                Sint16 sample = ch->sampleFunc(ch) * (ch->amplitude)/32768;
-                buffer[i] += sample * scaler / 256;
+                Sint16 sample = ch->sampleFunc(ch) * ch->amplitude/32768;
+                output += sample * scaler;
             }
 
             ch->wavePos += (65536 * ch->voiceFreq) / synth->sampleFreq;
         }
+        buffer[i] = output/256;
 
     }
 }
@@ -202,7 +221,6 @@ void createFilteredBuffer(GenerateWaveformFunc sampleFunc, Sint8* output, int fi
     }
 }
 
-
 void _synth_initAudioTables(Synth *synth) {
     for (int i = 0; i < SINE_TABLE_SIZE; i++) {
         sineTable[i] = 127 * sin(i * 6.283185 / SINE_TABLE_SIZE);
@@ -213,7 +231,7 @@ void _synth_initAudioTables(Synth *synth) {
 
     for (int i = 0; i < 128; i++) {
         synth->adTable[i] =  4096/(2*i+1);
-        synth->releaseTable[i] = 256/(i+1);
+        synth->releaseTable[i] = 128-i;
     }
 }
 
@@ -226,12 +244,12 @@ void _synth_initChannels(Synth *synth) {
     }
 }
 
-bool synth_init(Uint8 channels) {
+Synth* synth_init(Uint8 channels) {
     if (channels < 1) {
         fprintf(stderr, "Cannot set 0 channels\n");
-        return false;
+        return NULL;
     }
-    synth = calloc(1, sizeof(Synth));
+    Synth *synth = calloc(1, sizeof(Synth));
     synth->sampleFreq = 48000;
     synth->channels = channels;
     synth->channelData = calloc(channels, sizeof(Channel));
@@ -253,7 +271,8 @@ bool synth_init(Uint8 channels) {
     synth->audio = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     if (synth->audio == 0) {
         fprintf(stderr, "Failed to open audio due to %s\n", SDL_GetError());
-        return false;
+        synth_close(synth);
+        return NULL;
     } else {
         fprintf(stderr, "Freq %d channels %d format %04x\n", have.freq, have.channels, have.format);
     }
@@ -265,10 +284,10 @@ bool synth_init(Uint8 channels) {
 
     SDL_PauseAudioDevice(synth->audio, 0); /* start audio playing. */
 
-    return true;
+    return synth;
 }
 
-void synth_close() {
+void synth_close(Synth *synth) {
     if (NULL != synth) {
         if (synth->audio != 0) {
             SDL_CloseAudioDevice(synth->audio);
@@ -282,11 +301,7 @@ void synth_close() {
     }
 }
 
-typedef struct {
-    Sint8 pitch;
-} Note;
-
-void synth_setPwm(Uint8 channel, Sint8 dutyCycle, Sint8 pwm) {
+void synth_setPwm(Synth* synth, Uint8 channel, Sint8 dutyCycle, Sint8 pwm) {
     if (synth == NULL || channel >= synth->channels) {
         return;
     }
@@ -297,7 +312,7 @@ void synth_setPwm(Uint8 channel, Sint8 dutyCycle, Sint8 pwm) {
     ch->pwm = pwm;
 }
 
-void synth_setChannel(Uint8 channel, Sint8 attack, Sint8 decay, Sint8 sustain, Sint8 release, Waveform waveform) {
+void synth_setChannel(Synth *synth, Uint8 channel, Sint8 attack, Sint8 decay, Sint8 sustain, Sint8 release, Waveform waveform) {
     if (synth == NULL || channel >= synth->channels) {
         return;
     }
@@ -333,20 +348,28 @@ void synth_setChannel(Uint8 channel, Sint8 attack, Sint8 decay, Sint8 sustain, S
     }
 }
 
-void synth_notePitch(Uint8 channel, Sint8 note) {
+void synth_notePitch(Synth *synth, Uint8 channel, Sint8 note) {
     synth->channelData[channel].voiceFreq = frequencyTable[(note) % (sizeof(frequencyTable)/sizeof(Uint16))];
 }
 
-void synth_noteTrigger(Uint8 channel, Sint8 note) {
+void synth_noteTrigger(Synth *synth, Uint8 channel, Sint8 note) {
     synth->channelData[channel].adsr = ATTACK;
     synth->channelData[channel].amplitude = 0;
-    synth_notePitch(channel, note);
+    synth_notePitch(synth, channel, note);
 }
 
-void synth_noteOff(Uint8 channel) {
-    if (synth == NULL || channel >= synth->channels) {
+void synth_noteOff(Synth *synth, Uint8 channel) {
+    if (synth == NULL || channel >= synth->channels || synth->channelData[channel].adsr == OFF) {
         return;
     }
     synth->channelData[channel].adsr = RELEASE;
+    synth->channelData[channel].adsrPos = 0;
 }
 
+Uint8 streamDebug[256];
+
+Sint8* synth_getTable(Synth *synth) {
+    _synth_processBuffer(synth, streamDebug, 256);
+
+    return streamDebug;
+}

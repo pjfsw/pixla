@@ -24,7 +24,7 @@ Sint8 rowOffset = 0;
 Uint8 currentTrack = 0;
 Mode mode = STOP;
 
-typedef void(*KeyHandler)(SDL_Scancode scancode, SDL_Keymod keymod);
+typedef void(*KeyHandler)(Synth *synth, SDL_Scancode scancode, SDL_Keymod keymod);
 
 KeyHandler keyHandler[256];
 Sint8 keyToNote[256];
@@ -43,11 +43,11 @@ void moveToFirstRow() {
     screen_setRowOffset(rowOffset);
 }
 
-void moveHome(SDL_Scancode scancode, SDL_Keymod keymod) {
+void moveHome(Synth *synth, SDL_Scancode scancode, SDL_Keymod keymod) {
     moveToFirstRow();
 }
 
-void moveEnd(SDL_Scancode scancode, SDL_Keymod keymod) {
+void moveEnd(Synth *synth, SDL_Scancode scancode, SDL_Keymod keymod) {
     rowOffset = 63;
     screen_setRowOffset(rowOffset);
 }
@@ -60,11 +60,11 @@ void moveUpSteps(int steps) {
     screen_setRowOffset(rowOffset);
 }
 
-void moveUp(SDL_Scancode scancode,SDL_Keymod keymod) {
+void moveUp(Synth *synth, SDL_Scancode scancode,SDL_Keymod keymod) {
     moveUpSteps(1);
 }
 
-void moveUpMany(SDL_Scancode scancode,SDL_Keymod keymod) {
+void moveUpMany(Synth *synth, SDL_Scancode scancode,SDL_Keymod keymod) {
     moveUpSteps(16);
 }
 
@@ -76,7 +76,7 @@ void moveDownSteps(int steps) {
     screen_setRowOffset(rowOffset);
 }
 
-void moveDownMany(SDL_Scancode scancode,SDL_Keymod keymod) {
+void moveDownMany(Synth *synth, SDL_Scancode scancode,SDL_Keymod keymod) {
     moveDownSteps(16);
 }
 
@@ -89,11 +89,11 @@ bool isEditMode() {
     return mode == EDIT;
 }
 
-void moveDown(SDL_Scancode scancode,SDL_Keymod keymod) {
+void moveDown(Synth *synth, SDL_Scancode scancode,SDL_Keymod keymod) {
     moveDownSteps(1);
 }
 
-void increaseStepping(SDL_Scancode scancode,SDL_Keymod keymod) {
+void increaseStepping(Synth *synth, SDL_Scancode scancode,SDL_Keymod keymod) {
     if (keymod & KMOD_LSHIFT) {
         stepping--;
         if (stepping < 0) {
@@ -108,12 +108,12 @@ void increaseStepping(SDL_Scancode scancode,SDL_Keymod keymod) {
     printf("%d\n",keymod);
 }
 
-void playNote(Uint8 channel, Sint8 note) {
-    synth_setPwm(channel, 30, 5);
-    synth_noteTrigger(channel, note);
+void playNote(Synth *synth, Uint8 channel, Sint8 note) {
+    synth_setPwm(synth, channel, 30, 5);
+    synth_noteTrigger(synth, channel, note);
 }
 
-void playOrUpdateNote(SDL_Scancode scancode,SDL_Keymod keymod) {
+void playOrUpdateNote(Synth *synth, SDL_Scancode scancode,SDL_Keymod keymod) {
     if (keyToNote[scancode] > -1) {
         Sint8 note = keyToNote[scancode] + 12 * octave;
         if (note > 95) {
@@ -123,39 +123,39 @@ void playOrUpdateNote(SDL_Scancode scancode,SDL_Keymod keymod) {
             tracks[currentTrack].notes[rowOffset] = note;
             moveDownSteps(stepping);
         }
-        playNote(currentTrack, note);
+        playNote(synth, currentTrack, note);
 
     }
 }
 
-void skipRow(SDL_Scancode scancode,SDL_Keymod keymod) {
+void skipRow(Synth *synth, SDL_Scancode scancode,SDL_Keymod keymod) {
     if (isEditMode()) {
         moveDownSteps(stepping);
     } else {
-        synth_noteOff(currentTrack);
+        synth_noteOff(synth, currentTrack);
     }
 }
 
-void deleteNote(SDL_Scancode scancode, SDL_Keymod keymod) {
+void deleteNote(Synth *synth, SDL_Scancode scancode, SDL_Keymod keymod) {
     if (isEditMode()) {
         tracks[currentTrack].notes[rowOffset] = NO_NOTE;
         moveDownSteps(stepping);
     }
 }
 
-void noteOff(SDL_Scancode scancode, SDL_Keymod keymod) {
+void noteOff(Synth *synth, SDL_Scancode scancode, SDL_Keymod keymod) {
     if (isEditMode()) {
         tracks[currentTrack].notes[rowOffset] = NOTE_OFF;
         moveDownSteps(stepping);
     }
 }
 
-void setOctave(SDL_Scancode scancode, SDL_Keymod keymod) {
+void setOctave(Synth *synth, SDL_Scancode scancode, SDL_Keymod keymod) {
     octave = scancode - SDL_SCANCODE_F1;
     screen_setOctave(octave);
 }
 
-void previousColumn(SDL_Scancode scancode, SDL_Keymod keymod) {
+void previousColumn(Synth *synth, SDL_Scancode scancode, SDL_Keymod keymod) {
     if (currentTrack == 0) {
         return;
     }
@@ -163,7 +163,7 @@ void previousColumn(SDL_Scancode scancode, SDL_Keymod keymod) {
     screen_setSelectedColumn(currentTrack);
 }
 
-void nextColumn(SDL_Scancode scancode, SDL_Keymod keymod) {
+void nextColumn(Synth *synth, SDL_Scancode scancode, SDL_Keymod keymod) {
     if (currentTrack == CHANNELS-1) {
         return;
     }
@@ -190,7 +190,6 @@ bool loadSongWithName(char *name) {
         if (3 == fscanf(f, "%s %04x %02x\n", parameter, &address, &value)) {
             if (strcmp(parameter, "note") == 0) {
                 int track = address >> 8;
-                printf("Track %d\n", track);
                 int note = address & 255;
                 if (track < MAX_TRACKS && note < 64) {
                     tracks[track].notes[note] = value;
@@ -222,14 +221,14 @@ bool saveSongWithName(char* name) {
     return true;
 }
 
-void loadSong(SDL_Scancode scancode, SDL_Keymod keymod) {
+void loadSong(Synth *synth, SDL_Scancode scancode, SDL_Keymod keymod) {
     if (!loadSongWithName("song.pxm")) {
         screen_setStatusMessage("Could not open song.pxm");
     }
 
 }
 
-void saveSong(SDL_Scancode scancode, SDL_Keymod keymod) {
+void saveSong(Synth *synth, SDL_Scancode scancode, SDL_Keymod keymod) {
     if (saveSongWithName("song.pxm")) {
         screen_setStatusMessage("Successfully saved song.pxm");
     } else {
@@ -250,10 +249,10 @@ void stopPlayback() {
     }
 }
 
-void stopSong(SDL_Scancode scancode, SDL_Keymod keymod) {
+void stopSong(Synth *synth, SDL_Scancode scancode, SDL_Keymod keymod) {
     stopPlayback();
     for (int i = 0; i < CHANNELS; i++) {
-        synth_noteOff(i);
+        synth_noteOff(synth, i);
     }
 }
 
@@ -262,13 +261,15 @@ Uint32 getDelayFromBpm(int bpm) {
 }
 
 Uint32 playCallback(Uint32 interval, void *param) {
+    Synth *synth = (Synth*)param;
+
     for (int channel = 0; channel < CHANNELS; channel++) {
         Sint8 note = tracks[channel].notes[rowOffset];
 
         if (note == NOTE_OFF) {
-            synth_noteOff(channel);
+            synth_noteOff(synth, channel);
         } else if (note >= 0 && note < 97) {
-            playNote(channel, note);
+            playNote(synth, channel, note);
         }
     }
     screen_setRowOffset(rowOffset);
@@ -277,10 +278,10 @@ Uint32 playCallback(Uint32 interval, void *param) {
 }
 
 
-void playPattern(SDL_Scancode scancode, SDL_Keymod keymod) {
+void playPattern(Synth *synth, SDL_Scancode scancode, SDL_Keymod keymod) {
     stopPlayback();
     moveToFirstRow();
-    playbackTimerId = SDL_AddTimer(getDelayFromBpm(bpm), playCallback, NULL);
+    playbackTimerId = SDL_AddTimer(getDelayFromBpm(bpm), playCallback, synth);
     setMode(PLAY);
 };
 
@@ -362,17 +363,17 @@ int main(int argc, char* args[]) {
 
     loadSongWithName("song.pxm");
 
-    if (!synth_init(CHANNELS)) {
-        synth_close();
+    Synth *synth;
+
+    if (NULL == (synth = synth_init(CHANNELS))) {
         return 1;
     }
 
     if (!screen_init()) {
-        synth_close();
+        synth_close(synth);
         screen_close();
         return 1;
     }
-
 
 
     screen_setColumn(0, 64, tracks[0].notes);
@@ -380,11 +381,12 @@ int main(int argc, char* args[]) {
     screen_setColumn(2, 64, tracks[2].notes);
     screen_setColumn(3, 64, tracks[3].notes);
 
-    synth_setChannel(0, 0, 20, 60, 20, PWM);
-    synth_setChannel(1, 19, 30, 70, 50, LOWPASS_PULSE);
-    synth_setChannel(2, 0, 20, 40, 50, NOISE);
-    synth_setChannel(3, 0, 50, 40, 50, LOWPASS_SAW);
+    synth_setChannel(synth, 0, 0, 20, 60, 20, PWM);
+    synth_setChannel(synth, 1, 19, 30, 70, 50, LOWPASS_PULSE);
+    synth_setChannel(synth, 2, 0, 20, 40, 50, NOISE);
+    synth_setChannel(synth, 3, 0, 50, 40, 50, LOWPASS_SAW);
 
+    //screen_setTableToShow(synth_getTable(), 256);
     SDL_Keymod keymod;
     bool quit = false;
     /* Loop until an SDL_QUIT event is found */
@@ -400,7 +402,7 @@ int main(int argc, char* args[]) {
             case SDL_KEYDOWN:
                 keymod = SDL_GetModState();
                 if (keyHandler[event.key.keysym.scancode] != NULL) {
-                    keyHandler[event.key.keysym.scancode](event.key.keysym.scancode, keymod);
+                    keyHandler[event.key.keysym.scancode](synth, event.key.keysym.scancode, keymod);
                 }
                 printf("Key %d\n", event.key.keysym.scancode);
 
@@ -422,7 +424,7 @@ int main(int argc, char* args[]) {
         screen_update();
     }
     stopPlayback();
-    synth_close();
+    synth_close(synth);
     screen_close();
     return 0;
 }
