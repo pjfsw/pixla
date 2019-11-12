@@ -365,7 +365,7 @@ int main(int argc, char* args[]) {
 
     Synth *synth;
 
-    //synth_test();
+    synth_test();
     //return 0;
 
     if (NULL == (synth = synth_init(CHANNELS))) {

@@ -23,7 +23,11 @@ Synth *synth_init(Uint8 channels);
 void synth_setChannel(Synth *synth, Uint8 channel, Sint8 attack, Sint8 decay, Sint8 sustain, Sint8 release, Waveform waveform);
 
 /**
- * Set the Pulse Width Modulation setting of a channel
+ *
+ * \brief Set the Pulse Width Modulation setting of a channel
+ *
+ * hej
+ *
  */
 void synth_setPwm(Synth* synth, Uint8 channel, Sint8 dutyCycle, Sint8 pwm);
 

@@ -54,7 +54,7 @@ typedef struct _Synth {
     Sint8 lowpassSaw[256];
     Sint8 lowpassPulse[256];
     Sint16 adTable[128];
-    Uint8 releaseTable[128];
+    Uint8 releaseTable[256];
     SDL_AudioDeviceID audio;
     Channel* channelData;
     Uint16 additiveFilter;
@@ -102,16 +102,7 @@ void _synth_updateAdsr(Synth *synth, Channel *ch) {
             ch->amplitude = 0;
             ch->adsr = OFF;
         } else if (ch->adsrPos >= 0) {
-            int tableIndex = ch->adsrPos/256;
-
-            /*Sint16 r1 = synth->releaseTable[tableIndex] * weight;
-            Sint16 r2;
-            if (tableIndex < 127) {
-                r2 = synth->releaseTable[tableIndex+1] * weight;
-            } else {
-                r2 = 0;
-            };*/
-            //ch->amplitude = ch->sustain * (r1+r2)/512;
+            int tableIndex = ch->adsrPos/128;
             ch->amplitude = ch->sustain * synth->releaseTable[tableIndex];
             ch->adsrPos += 129-ch->release;
         } else {
@@ -226,10 +217,11 @@ void _synth_initAudioTables(Synth *synth) {
 
     for (int i = 0; i < 128; i++) {
         synth->adTable[i] =  4096/(2*i+1);
-        //synth->releaseTable[i] = 255-i*2;
-        synth->releaseTable[i] = 255- (float)22.5 * sqrt(i);
     }
-    for (int i = 0; i < 128; i++) {
+    for (int i = 0; i < 256; i++) {
+        synth->releaseTable[i] = 255- (float)15.9 * sqrt(i);
+    }
+    for (int i = 0; i < 256; i++) {
         printf("%d = %d\n", i, synth->releaseTable[i]);
     }
 }
@@ -390,7 +382,7 @@ void _synth_printChannel(Channel *channel) {
 }
 
 Uint32 testSamples=0;
-int testNumberOfChannels=5;
+int testNumberOfChannels=1;
 
 void _synth_testRunBuffer(Synth *testSynth) {
     int bufSize = 64;
