@@ -132,7 +132,7 @@ void skipRow(Synth *synth, SDL_Scancode scancode,SDL_Keymod keymod) {
     if (isEditMode()) {
         moveDownSteps(stepping);
     } else {
-        synth_noteOff(synth, currentTrack);
+        synth_noteRelease(synth, currentTrack);
     }
 }
 
@@ -237,23 +237,26 @@ void saveSong(Synth *synth, SDL_Scancode scancode, SDL_Keymod keymod) {
     }
 }
 
-void stopPlayback() {
+void stopPlayback(Synth *synth) {
     if (playbackTimerId != 0) {
         SDL_RemoveTimer(playbackTimerId);
         playbackTimerId = 0;
     }
     if (mode == STOP) {
         setMode(EDIT);
+        for (int i = 0; i < CHANNELS; i++) {
+            synth_noteOff(synth, i);
+        }
     } else {
         setMode(STOP);
+        for (int i = 0; i < CHANNELS; i++) {
+            synth_noteRelease(synth, i);
+        }
     }
 }
 
 void stopSong(Synth *synth, SDL_Scancode scancode, SDL_Keymod keymod) {
-    stopPlayback();
-    for (int i = 0; i < CHANNELS; i++) {
-        synth_noteOff(synth, i);
-    }
+    stopPlayback(synth);
 }
 
 Uint32 getDelayFromBpm(int bpm) {
@@ -267,7 +270,7 @@ Uint32 playCallback(Uint32 interval, void *param) {
         Sint8 note = tracks[channel].notes[rowOffset];
 
         if (note == NOTE_OFF) {
-            synth_noteOff(synth, channel);
+            synth_noteRelease(synth, channel);
         } else if (note >= 0 && note < 97) {
             playNote(synth, channel, note);
         }
@@ -279,7 +282,7 @@ Uint32 playCallback(Uint32 interval, void *param) {
 
 
 void playPattern(Synth *synth, SDL_Scancode scancode, SDL_Keymod keymod) {
-    stopPlayback();
+    stopPlayback(synth);
     moveToFirstRow();
     playbackTimerId = SDL_AddTimer(getDelayFromBpm(bpm), playCallback, synth);
     setMode(PLAY);
@@ -427,7 +430,7 @@ int main(int argc, char* args[]) {
         screen_update();
         SDL_Delay(5);
     }
-    stopPlayback();
+    stopPlayback(synth);
     synth_close(synth);
     screen_close();
     return 0;

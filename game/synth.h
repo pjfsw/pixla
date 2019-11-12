@@ -35,6 +35,8 @@ void synth_notePitch(Synth *synth, Uint8 channel, Sint8 note);
 
 void synth_noteOff(Synth *synth, Uint8 channel);
 
+void synth_noteRelease(Synth *synth, Uint8 channel);
+
 void synth_noteTrigger(Synth *synth, Uint8 channel, Sint8 note);
 
 /* Sint8* synth_getTable(Synth *synth); */
