@@ -9,7 +9,6 @@ typedef struct _Synth Synth;
 typedef enum {
     LOWPASS_SAW,
     LOWPASS_PULSE,
-    ADDITIVE_PULSE,
     NOISE,
     PWM
 } Waveform;

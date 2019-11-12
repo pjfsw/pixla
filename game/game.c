@@ -387,10 +387,10 @@ int main(int argc, char* args[]) {
     screen_setColumn(2, 64, tracks[2].notes);
     screen_setColumn(3, 64, tracks[3].notes);
 
-    synth_setChannel(synth, 0, 0, 20, 60, 90, PWM);
-    synth_setChannel(synth, 1, 19, 30, 70, 100, LOWPASS_PULSE);
+    synth_setChannel(synth, 0, 0, 40, 60, 60, PWM);
+    synth_setChannel(synth, 1, 10, 30, 70, 60, LOWPASS_PULSE);
     synth_setChannel(synth, 2, 0, 20, 40, 50, NOISE);
-    synth_setChannel(synth, 3, 0, 50, 40, 100, LOWPASS_SAW);
+    synth_setChannel(synth, 3, 0, 50, 40, 70, LOWPASS_SAW);
 
     //screen_setTableToShow(synth_getTable(), 256);
     SDL_Keymod keymod;

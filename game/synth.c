@@ -53,8 +53,8 @@ typedef struct _Synth {
     Uint16 sampleFreq;
     Sint8 lowpassSaw[256];
     Sint8 lowpassPulse[256];
-    Sint16 adTable[128];
-    Uint8 releaseTable[512];
+    Uint8 attackTable[512];
+    Uint8 decayReleaseTable[512];
     SDL_AudioDeviceID audio;
     Channel* channelData;
     Uint16 additiveFilter;
@@ -70,12 +70,6 @@ typedef struct _Synth {
 #define ADSR_TIMESCALER_2 (511 * 127 * ADSR_PWM_PRESCALER)/(ADSR_MAX_TIME_IN_SECS * SAMPLE_RATE)
 
 
-#define SINE_TABLE_BITSIZE 12
-#define SINE_TABLE_SIZE (1 << SINE_TABLE_BITSIZE)
-#define ADDITIVE_SHIFT (16-SINE_TABLE_BITSIZE)
-
-Sint8 sineTable[SINE_TABLE_SIZE];
-
 void _synth_updateAdsr(Synth *synth, Channel *ch) {
 
     switch(ch->adsr) {
@@ -84,13 +78,14 @@ void _synth_updateAdsr(Synth *synth, Channel *ch) {
             ch->amplitude = 32767;
             ch->adsr = DECAY;
         } else {
-            if (ch->amplitude == 0) {
-                ch->amplitude = 1;
-            }
-            ch->amplitude += synth->adTable[ch->attack];
-            if (ch->amplitude < 0) {
+            Uint16 tableIndex = ADSR_TIMESCALER_2 * ch->adsrTimer / ch->attack;
+            if (tableIndex < 511) { // 511 = scaled up twice
+                ch->amplitude = synth->attackTable[tableIndex] << 7;
+                ch->adsrTimer++;
+            } else {
                 ch->amplitude = 32767;
                 ch->adsr = DECAY;
+                ch->adsrTimer = 0;
             }
         }
         break;
@@ -99,8 +94,11 @@ void _synth_updateAdsr(Synth *synth, Channel *ch) {
             ch->amplitude = ch->sustain << 8;
             ch->adsr = SUSTAIN;
         } else {
-            ch->amplitude -= synth->adTable[ch->decay];
-            if (ch->amplitude < (ch->sustain << 8)) {
+            Uint16 tableIndex = ADSR_TIMESCALER_2 * ch->adsrTimer / ch->decay;
+            if (tableIndex < 511) { // 511 = scaled up twice
+                ch->amplitude = (ch->sustain << 8) + ((127-ch->sustain) * synth->decayReleaseTable[tableIndex]);
+                ch->adsrTimer++;
+            } else {
                 ch->amplitude = ch->sustain << 8;
                 ch->adsr = SUSTAIN;
             }
@@ -143,7 +141,7 @@ void _synth_updateAdsr(Synth *synth, Channel *ch) {
 
             Uint16 tableIndex = ADSR_TIMESCALER_2 * ch->adsrTimer / ch->release;
             if (tableIndex < 511) { // 511 = scaled up twice
-                ch->amplitude = ch->sustain * synth->releaseTable[tableIndex];
+                ch->amplitude = ch->sustain * synth->decayReleaseTable[tableIndex];
                 ch->adsrTimer++;
             } else {
                 ch->amplitude = 0;
@@ -177,21 +175,6 @@ Sint8 _synth_getPulse(Channel *ch) {
 
 Sint8 _synth_getNoise(Channel *ch) {
     return rand() >> 24;
-}
-
-Sint8 _synth_getAdditivePulse(Channel *ch) {
-    Sint16 sample = 0;
-
-
-    for (int i = 0; i < ch->param1; i++) {
-        int harmonic = i*2+1;
-        int amplitude = 256/harmonic;
-
-        Uint16 harmonicWavePos = harmonic * ch->wavePos;
-
-        sample +=  amplitude * sineTable[(harmonicWavePos >> ADDITIVE_SHIFT) % SINE_TABLE_SIZE] / 256;
-    }
-    return sample;
 }
 
 void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
@@ -252,22 +235,18 @@ void createFilteredBuffer(GenerateWaveformFunc sampleFunc, Sint8* output, int fi
 }
 
 void _synth_initAudioTables(Synth *synth) {
-    for (int i = 0; i < SINE_TABLE_SIZE; i++) {
-        sineTable[i] = 127 * sin(i * 6.283185 / SINE_TABLE_SIZE);
-    }
-
     createFilteredBuffer(getSquareAmplitude, synth->lowpassPulse, 16);
     createFilteredBuffer(getSawAmplitude, synth->lowpassSaw, 4);
 
-    for (int i = 0; i < 128; i++) {
-        synth->adTable[i] =  4096/(2*i+1);
+
+    for (int i = 0; i < 511; i++) {
+        synth->attackTable[i] = 11.2*sqrt(i);
     }
     for (int i = 0; i < 511; i++) {
-        //synth->releaseTable[i] = 255- (float)15.9 * sqrt(i);
-        synth->releaseTable[i] = 13950/(i+50)-24;
+        synth->decayReleaseTable[i] = 13950/(i+50)-24;
     }
-    for (int i = 0; i < 256; i++) {
-        printf("%d = %d\n", i, synth->releaseTable[i]);
+    for (int i = 0; i < 511; i++) {
+        printf("%d = %d\n", i, synth->attackTable[i]);
     }
 }
 
@@ -365,11 +344,6 @@ void synth_setChannel(Synth *synth, Uint8 channel, Sint8 attack, Sint8 decay, Si
         ch->wave = synth->lowpassPulse;
         ch->sampleFunc =  _synth_getSampleFromArray;
         break;
-
-    case ADDITIVE_PULSE:
-        ch->param1 = 20;
-        ch->sampleFunc = _synth_getAdditivePulse;
-        break;
     case PWM:
         ch->dutyCycle = 64 << 9;
         ch->pwm = 2;
@@ -389,6 +363,7 @@ void synth_notePitch(Synth *synth, Uint8 channel, Sint8 note) {
 void synth_noteTrigger(Synth *synth, Uint8 channel, Sint8 note) {
     synth->channelData[channel].adsr = ATTACK;
     synth->channelData[channel].amplitude = 0;
+    synth->channelData[channel].adsrTimer = 0;
     synth_notePitch(synth, channel, note);
 }
 
@@ -406,6 +381,7 @@ void synth_noteOff(Synth *synth, Uint8 channel) {
     }
     synth->channelData[channel].adsr = OFF;
     synth->channelData[channel].amplitude = 0;
+    synth->channelData[channel].adsrTimer = 0;
 }
 
 
