@@ -345,8 +345,8 @@ void synth_setChannel(Synth *synth, Uint8 channel, Sint8 attack, Sint8 decay, Si
         ch->sampleFunc =  _synth_getSampleFromArray;
         break;
     case PWM:
-        ch->dutyCycle = 64 << 9;
-        ch->pwm = 2;
+        ch->dutyCycle = 24 << 9;
+        ch->pwm = 3;
         ch->sampleFunc = _synth_getPulse;
         break;
     case NOISE:
@@ -465,7 +465,7 @@ void _synth_testNoteOn(Synth *testSynth) {
 void _synth_testNoteOff(Synth *testSynth) {
     printf("+ NOTE OFF \n");
     for (int i = 0; i < testNumberOfChannels; i++) {
-        synth_noteOff(testSynth, i);
+        synth_noteRelease(testSynth, i);
     }
 }
 
