@@ -18,6 +18,7 @@ typedef struct {
     SDL_Texture *piano;
     SDL_Texture *noteTexture[128];
     SDL_Texture *noteBeatTexture[128];
+    SDL_Texture *asciiTexture[256];
     int noteWidth[128];
     int noteHeight[128];
     TTF_Font *font;
@@ -58,10 +59,26 @@ void _screen_loadResources() {
      }
 }
 
-void _screen_initArrays() {
-    for (int i = 0; i < 64; i++) {
-        sprintf(screen->rowNumbers[i], "%02d", i);
+void _screen_createAsciiTextures() {
+    char chars[2];
+    chars[1] = 0;
+
+    for (int i = 0; i < 256; i++) {
+        if (i < 32 || i > 127) {
+            chars[0] = ' ';
+        } else {
+            chars[0] = i;
+        }
+
+        SDL_Surface *text = TTF_RenderText_Solid(screen->font, chars, noteColor);
+        if (NULL != text) {
+            screen->asciiTexture[i] = SDL_CreateTextureFromSurface(screen->renderer, text);
+            SDL_FreeSurface(text);
+        }
     }
+}
+
+void _screen_createNoteTextures() {
     char *noteText[] = {
             "C-","C#","D-","D#", "E-","F-","F#","G-","G#","A-","A#","B-"
     };
@@ -92,6 +109,15 @@ void _screen_initArrays() {
             SDL_FreeSurface(text2);
         }
     }
+}
+
+void _screen_initArrays() {
+    for (int i = 0; i < 64; i++) {
+        sprintf(screen->rowNumbers[i], "%02d", i);
+    }
+    _screen_createNoteTextures();
+    _screen_createAsciiTextures();
+
 }
 
 bool screen_init() {
@@ -142,6 +168,10 @@ void screen_close() {
             screen->noteTexture[i] = NULL;
             screen->noteBeatTexture[i] = NULL;
         }
+        for (int i = 0; i < 256; i++) {
+            SDL_DestroyTexture(screen->asciiTexture[i]);
+            screen->asciiTexture[i] = NULL;
+        }
         if (NULL != screen->font) {
             TTF_CloseFont(screen->font);
             screen->font = NULL;
@@ -167,21 +197,22 @@ void screen_close() {
 
 void screen_print(int x, int y, char* msg, SDL_Color *color) {
 
-    if (screen->font == NULL) {
+    if (screen->font == NULL || msg == NULL || color == NULL) {
         return;
     }
-    SDL_Surface *text = TTF_RenderText_Solid(screen->font, msg, *color);
-    if (NULL != text ) {
-        SDL_Texture *texture = SDL_CreateTextureFromSurface(screen->renderer, text);
-        SDL_Rect pos = {
-                .x=x,
-                .y=y,
-                .w=text->w,
-                .h=text->h
-        };
-        SDL_RenderCopy(screen->renderer, texture, NULL, &pos);
-        SDL_FreeSurface(text);
-        SDL_DestroyTexture(texture);
+
+    SDL_Rect pos = {
+            .x=x,
+            .y=y,
+            .w=8,
+            .h=8,
+    };
+
+    while (*msg != 0) {
+        SDL_RenderCopy(screen->renderer, screen->asciiTexture[(int)*msg], NULL, &pos);
+        pos.x+=8;
+        msg++;
+
     }
 }
 
