@@ -1,9 +1,10 @@
+#include "screen.h"
+
 #include <stdlib.h>
 #include <stdbool.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
-#include "screen.h"
 
 #define SCREEN_WIDTH 400
 #define SCREEN_HEIGHT 300
@@ -46,14 +47,16 @@ SDL_Color statusColor = {255,255,255};
 
 Screen *screen = NULL;
 
+#define RESOURCE_DIR "../resources/"
+
 void _screen_loadResources() {
-     screen->logo = IMG_LoadTexture(screen->renderer,"../game/pixla.png");
+     screen->logo = IMG_LoadTexture(screen->renderer, "../resources/pixla.png");
      if (screen->logo != NULL) {
          SDL_QueryTexture(screen->logo, NULL, NULL, &screen->logo_w, &screen->logo_h);
      }
-     screen->piano = IMG_LoadTexture(screen->renderer, "../game/piano.png");
+     screen->piano = IMG_LoadTexture(screen->renderer, "../resources/piano.png");
 
-     screen->font = TTF_OpenFont("../game/nesfont.fon", 8);
+     screen->font = TTF_OpenFont("../resources/nesfont.fon", 8);
      if (screen->font == NULL) {
          fprintf(stderr, "Failed to load font\n");
      }

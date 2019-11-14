@@ -1,7 +1,8 @@
+#include "synth.h"
+
 #include <SDL2/SDL.h>
 #include <stdio.h>
 
-#include "synth.h"
 #include "frequency_table.h"
 
 typedef enum {
