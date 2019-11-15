@@ -1,8 +1,8 @@
-#include "synth.h"
 
 #include <SDL2/SDL.h>
 #include <stdio.h>
 
+#include "synth.h"
 #include "frequency_table.h"
 
 typedef enum {
@@ -27,24 +27,29 @@ typedef Sint8 (*GenerateWaveformFunc)(Uint8 offset);
 typedef Sint8 (*GetSampleFunc)(Channel *channel);
 
 
+typedef struct {
+    Uint16 wavePos;
+    Sint8 *wave;
+    GetSampleFunc sampleFunc;
+    Uint16 dutyCycle;
+    Sint8 pwm;
+} WaveData;
+
+
+typedef struct {
+    Sint16 amplitude;
+    Uint16 adsrTimer;
+    Adsr adsr;
+} AmpData;
 /*
  * Definition of an oscillator channel
  */
 typedef struct _Channel {
-    Uint16 voiceFreq;
-    Uint16 wavePos;
-    Adsr adsr;
-    Sint16 amplitude;
-    Sint8 *wave;
-    GetSampleFunc sampleFunc;
-    Sint8 param1;
-    Sint8 pwm;
-    Uint16 dutyCycle;
-    Uint16 adsrTimer;
-    Sint8 attack;
-    Sint8 decay;
-    Sint8 sustain;
-    Sint8 release;
+    Uint32 playtime;
+    Uint8 patch;
+    Sint8 note;
+    WaveData waveData;
+    AmpData ampData;
 } Channel;
 
 /*
@@ -57,8 +62,8 @@ typedef struct _Synth {
     Uint8 attackTable[512];
     Uint8 decayReleaseTable[512];
     SDL_AudioDeviceID audio;
-    Channel* channelData;
-    Uint16 additiveFilter;
+    Channel *channelData;
+    Instrument *instruments;
     Uint8 channels;
 } Synth;
 
@@ -72,44 +77,46 @@ typedef struct _Synth {
 
 
 void _synth_updateAdsr(Synth *synth, Channel *ch) {
+    Instrument *instr = &synth->instruments[ch->patch];
+    AmpData *amp = &ch->ampData;
 
-    switch(ch->adsr) {
+    switch(amp->adsr) {
     case ATTACK:
-        if (ch->attack == 0) {
-            ch->amplitude = 32767;
-            ch->adsr = DECAY;
+        if (instr->attack == 0) {
+            amp->amplitude = 32767;
+            amp->adsr = DECAY;
         } else {
-            Uint16 tableIndex = ADSR_TIMESCALER_2 * ch->adsrTimer / ch->attack;
+            Uint16 tableIndex = ADSR_TIMESCALER_2 * amp->adsrTimer / instr->attack;
             if (tableIndex < 511) { // 511 = scaled up twice
-                ch->amplitude = synth->attackTable[tableIndex] << 7;
-                ch->adsrTimer++;
+                amp->amplitude = synth->attackTable[tableIndex] << 7;
+                amp->adsrTimer++;
             } else {
-                ch->amplitude = 32767;
-                ch->adsr = DECAY;
-                ch->adsrTimer = 0;
+                amp->amplitude = 32767;
+                amp->adsr = DECAY;
+                amp->adsrTimer = 0;
             }
         }
         break;
     case DECAY:
-        if (ch->decay == 0) {
-            ch->amplitude = ch->sustain << 8;
-            ch->adsr = SUSTAIN;
+        if (instr->decay == 0) {
+            amp->amplitude = instr->sustain << 8;
+            amp->adsr = SUSTAIN;
         } else {
-            Uint16 tableIndex = ADSR_TIMESCALER_2 * ch->adsrTimer / ch->decay;
+            Uint16 tableIndex = ADSR_TIMESCALER_2 * amp->adsrTimer / instr->decay;
             if (tableIndex < 511) { // 511 = scaled up twice
-                ch->amplitude = (ch->sustain << 8) + ((127-ch->sustain) * synth->decayReleaseTable[tableIndex]);
-                ch->adsrTimer++;
+                amp->amplitude = (instr->sustain << 8) + ((127-instr->sustain) * synth->decayReleaseTable[tableIndex]);
+                amp->adsrTimer++;
             } else {
-                ch->amplitude = ch->sustain << 8;
-                ch->adsr = SUSTAIN;
+                amp->amplitude = instr->sustain << 8;
+                amp->adsr = SUSTAIN;
             }
         }
         break;
     case RELEASE:
-        if (ch->release == 0) {
-            ch->amplitude = 0;
-            ch->adsr = OFF;
-        } else if (ch->adsrTimer < 0xffff) {
+        if (instr->release == 0) {
+            amp->amplitude = 0;
+            amp->adsr = OFF;
+        } else if (amp->adsrTimer < 0xffff) {
             // Normalized time in seconds:
             // t in s = adsrPos * ADSR_PWM_PRESCALER / SAMPLE_RATE, 16/48000 ger t = 3000  = 1 s
             // t in micros = 16000/48 = 300
@@ -140,17 +147,17 @@ void _synth_updateAdsr(Synth *synth, Channel *ch) {
             //
             //  i
 
-            Uint16 tableIndex = ADSR_TIMESCALER_2 * ch->adsrTimer / ch->release;
+            Uint16 tableIndex = ADSR_TIMESCALER_2 * amp->adsrTimer / instr->release;
             if (tableIndex < 511) { // 511 = scaled up twice
-                ch->amplitude = ch->sustain * synth->decayReleaseTable[tableIndex];
-                ch->adsrTimer++;
+                amp->amplitude = instr->sustain * synth->decayReleaseTable[tableIndex];
+                amp->adsrTimer++;
             } else {
-                ch->amplitude = 0;
-                ch->adsr = OFF;
+                amp->amplitude = 0;
+                amp->adsr = OFF;
             }
         } else {
-            ch->amplitude = 0;
-            ch->adsr = OFF;
+            amp->amplitude = 0;
+            amp->adsr = OFF;
         }
         break;
     case OFF:
@@ -160,18 +167,17 @@ void _synth_updateAdsr(Synth *synth, Channel *ch) {
 }
 
 Sint8 _synth_getSampleFromArray(Channel *ch) {
-    Sint8 sample = ch->wave[ch->wavePos >> 8];
+    Sint8 sample = ch->waveData.wave[ch->waveData.wavePos >> 8];
     return sample;
 }
 
 Sint8 _synth_getPulseAtPos(Uint16 dutyCycle, Uint16 wavePos) {
-    return wavePos > dutyCycle ? 127 : -128;
+    return wavePos > dutyCycle ? 119 : -120;
 }
 
 Sint8 _synth_getPulse(Channel *ch) {
-    Uint16 dutyCycle = ch->dutyCycle;
-    Uint16 wavePos = ch->wavePos;
-    return _synth_getPulseAtPos(dutyCycle, wavePos);
+    Uint16 dutyCycle = ch->waveData.dutyCycle;
+    return _synth_getPulseAtPos(dutyCycle, ch->waveData.wavePos);
 }
 
 Sint8 _synth_getNoise(Channel *ch) {
@@ -182,30 +188,36 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
     Synth *synth = (Synth*)userdata;
     Sint8 *buffer = (Sint8*)stream;
 
-    synth->additiveFilter++;
-
     Sint8 scaler = 96/synth->channels;
+
+    Uint16 voiceFreq = 0;
+
 
     for (int i = 0; i < len; i++) {
         Sint16 output = 0;
 
         for (int j = 0; j < synth->channels; j++) {
             Channel *ch = &synth->channelData[j];
+            WaveData *wav = &ch->waveData;
+            AmpData *amp = &ch->ampData;
+
+            voiceFreq = frequencyTable[(ch->note) % (sizeof(frequencyTable)/sizeof(Uint16))];
 
             if (0 == i % ADSR_PWM_PRESCALER) {
+
                 _synth_updateAdsr(synth, ch);
-                if (ch->pwm > 0) {
-                    ch->dutyCycle+=ch->pwm;
+                if (ch->waveData.pwm > 0) {
+                    ch->waveData.dutyCycle+=ch->waveData.pwm;
                 }
             }
 
 
-            if (ch->adsr != OFF) {
-                Sint16 sample = ch->sampleFunc(ch) * ch->amplitude/32768;
+            if (amp->adsr != OFF) {
+                Sint16 sample = wav->sampleFunc(ch) * amp->amplitude/32768;
                 output += sample;
             }
 
-            ch->wavePos += (65536 * ch->voiceFreq) / synth->sampleFreq;
+            wav->wavePos += (65536 * voiceFreq) / synth->sampleFreq;
         }
         buffer[i] = output * scaler / 128;
 
@@ -253,10 +265,11 @@ void _synth_initAudioTables(Synth *synth) {
 
 void _synth_initChannels(Synth *synth) {
     for (int i = 0; i < synth->channels; i++) {
-        synth->channelData[i].amplitude = 0;
-        synth->channelData[i].adsr = OFF;
-        synth->channelData[i].wave = synth->lowpassPulse;
-        synth->channelData[i].sampleFunc = _synth_getSampleFromArray;
+        synth->channelData[i].ampData.amplitude = 0;
+        synth->channelData[i].ampData.adsr = OFF;
+        synth->channelData[i].waveData.wave = synth->lowpassPulse;
+        synth->channelData[i].waveData.sampleFunc = _synth_getSampleFromArray;
+        synth->channelData[i].patch  = 0;
     }
 }
 
@@ -269,6 +282,7 @@ Synth* synth_init(Uint8 channels) {
     synth->sampleFreq = SAMPLE_RATE;
     synth->channels = channels;
     synth->channelData = calloc(channels, sizeof(Channel));
+    synth->instruments = calloc(MAX_INSTRUMENTS, sizeof(Instrument));
 
     SDL_AudioSpec want;
     SDL_AudioSpec have;
@@ -310,88 +324,108 @@ void synth_close(Synth *synth) {
             free(synth->channelData);
             synth->channelData = NULL;
         }
+        if (NULL != synth->instruments) {
+            free(synth->instruments);
+            synth->instruments = NULL;
+        }
         free(synth);
         synth = NULL;
     }
 }
 
-void synth_setPwm(Synth* synth, Uint8 channel, Sint8 dutyCycle, Sint8 pwm) {
-    if (synth == NULL || channel >= synth->channels) {
+void synth_loadPatch(Synth *synth, Uint8 patch, Instrument *instrument) {
+    if (synth == NULL || instrument == NULL) {
         return;
     }
-    Channel *ch = &synth->channelData[channel];
-    if (dutyCycle >= 0) {
-        ch->dutyCycle = dutyCycle << 9;
-    }
-    ch->pwm = pwm;
+    memcpy(&synth->instruments[patch], instrument, sizeof(Instrument));
 }
 
-void synth_setChannel(Synth *synth, Uint8 channel, Sint8 attack, Sint8 decay, Sint8 sustain, Sint8 release, Waveform waveform) {
-    if (synth == NULL || channel >= synth->channels) {
-        return;
+void _synth_updateAmpData(AmpData *amp) {
+    amp->adsr = ATTACK;
+    amp->amplitude = 0;
+    amp->adsrTimer = 0;}
+
+
+void _synth_updateWaveform(Synth *synth, Uint8 channel) {
+    Channel *ch =  &synth->channelData[channel];
+    Instrument *instr = &synth->instruments[ch->patch];
+    WaveData *wav = &ch->waveData;
+
+ /*   Uint32 length = 0;
+    for (int i = 0; i < 3; i++) {
+        if (instr->waves[i].length == 0 || ch->playtime < length + instr->waves[i].length) {
+            waveform = instr->waves[i].waveform;
+            break;
+        }
+        length += instr->waves[i].length;
+    }*/
+
+    Wavesegment *waveData = &instr->waves[0];
+    Waveform waveform = waveData->waveform;
+    ch->waveData.pwm = waveData->pwm;
+    if (waveData->dutyCycle > 0) {
+        ch->waveData.dutyCycle = waveData->dutyCycle << 8;
     }
 
-    Channel *ch = &synth->channelData[channel];
-    ch->attack = attack;
-    ch->decay = decay;
-    ch->sustain = sustain;
-    ch->release = release;
+
     switch (waveform) {
     case LOWPASS_SAW:
-        ch->wave = synth->lowpassSaw;
-        ch->sampleFunc =  _synth_getSampleFromArray;
+        wav->wave = synth->lowpassSaw;
+        wav->sampleFunc =  _synth_getSampleFromArray;
         break;
     case LOWPASS_PULSE:
-        ch->wave = synth->lowpassPulse;
-        ch->sampleFunc =  _synth_getSampleFromArray;
+        wav->wave = synth->lowpassPulse;
+        wav->sampleFunc =  _synth_getSampleFromArray;
         break;
     case PWM:
-        ch->dutyCycle = 24 << 9;
-        ch->pwm = 3;
-        ch->sampleFunc = _synth_getPulse;
+        wav->sampleFunc = _synth_getPulse;
         break;
     case NOISE:
-        ch->sampleFunc = _synth_getNoise;
+        wav->sampleFunc = _synth_getNoise;
         break;
-
     }
 }
 
-void synth_notePitch(Synth *synth, Uint8 channel, Sint8 note) {
-    synth->channelData[channel].voiceFreq = frequencyTable[(note) % (sizeof(frequencyTable)/sizeof(Uint16))];
+
+void synth_notePitch(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note) {
+    synth->channelData[channel].note = note;
 }
 
-void synth_noteTrigger(Synth *synth, Uint8 channel, Sint8 note) {
-    synth->channelData[channel].adsr = ATTACK;
-    synth->channelData[channel].amplitude = 0;
-    synth->channelData[channel].adsrTimer = 0;
-    synth_notePitch(synth, channel, note);
+void synth_noteTrigger(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note) {
+    Channel *ch = &synth->channelData[channel];
+    ch->ampData.adsr = OFF;
+    ch->playtime = 0;
+    ch->patch = patch;
+    ch->waveData.wavePos = 0;
+    _synth_updateWaveform(synth, channel);
+    synth_notePitch(synth, channel, patch, note);
+    _synth_updateAmpData(&ch->ampData);
 }
 
 void synth_noteRelease(Synth *synth, Uint8 channel) {
-    if (synth == NULL || channel >= synth->channels || synth->channelData[channel].adsr == OFF) {
+    if (synth == NULL || channel >= synth->channels || synth->channelData[channel].ampData.adsr == OFF) {
         return;
     }
-    synth->channelData[channel].adsr = RELEASE;
-    synth->channelData[channel].adsrTimer = 0;
+    synth->channelData[channel].ampData.adsr = RELEASE;
+    synth->channelData[channel].ampData.adsrTimer = 0;
 }
 
 void synth_noteOff(Synth *synth, Uint8 channel) {
-    if (synth == NULL || channel >= synth->channels || synth->channelData[channel].adsr == OFF) {
+    if (synth == NULL || channel >= synth->channels || synth->channelData[channel].ampData.adsr == OFF) {
         return;
     }
-    synth->channelData[channel].adsr = OFF;
-    synth->channelData[channel].amplitude = 0;
-    synth->channelData[channel].adsrTimer = 0;
+    synth->channelData[channel].ampData.adsr = OFF;
+    synth->channelData[channel].ampData.amplitude = 0;
+    synth->channelData[channel].ampData.adsrTimer = 0;
 }
 
 
 
 Uint8 streamDebug[256];
 
-void _synth_printChannel(Channel *channel) {
+void _synth_printChannel(AmpData *amp) {
     char *adsrText;
-    switch (channel->adsr) {
+    switch (amp->adsr) {
     case ATTACK:
         adsrText = "Attack";
         break;
@@ -408,7 +442,7 @@ void _synth_printChannel(Channel *channel) {
         adsrText = "Off";
         break;
     }
-    printf("? Amplitude: %d, ADSR: %s, ADSR Pos: %d\n", channel->amplitude, adsrText, channel->amplitude);
+    printf("? Amplitude: %d, ADSR: %s, ADSR Pos: %d\n", amp->amplitude, adsrText, amp->amplitude);
 }
 
 Uint32 testSamples=0;
@@ -453,13 +487,13 @@ void _synth_testRunBuffer(Synth *testSynth) {
 
 void _synth_testInitChannel(Synth *testSynth,int channel,  Sint8 attack, Sint8 decay, Sint8 sustain, Sint8 release) {
     printf("+ Ch: %d A: %d D: %d S: %d R: %d\n", channel, attack, decay, sustain, release);
-    synth_setChannel(testSynth, channel, attack, decay, sustain, release, PWM);
+    //synth_setChannel(testSynth, channel, attack, decay, sustain, release, PWM);
 }
 
 void _synth_testNoteOn(Synth *testSynth) {
     printf("+ NOTE TRIGGER (24)\n");
     for (int i = 0; i < testNumberOfChannels; i++) {
-        synth_noteTrigger(testSynth, i, 24);
+        synth_noteTrigger(testSynth, i, 0, 24);
     }
 }
 
@@ -475,12 +509,12 @@ void _synth_runTests(Synth *testSynth) {
     printf("\n");
     for (int i = 0; i < testNumberOfChannels; i++) {
         _synth_testInitChannel(testSynth, i, 10, 20, 100, 120);
-        _synth_printChannel(&testSynth->channelData[i]);
+        _synth_printChannel(&testSynth->channelData[i].ampData);
     }
     _synth_testRunBuffer(testSynth);
     _synth_testNoteOn(testSynth);
     for (int i = 0; i < testNumberOfChannels; i++) {
-        _synth_printChannel(&testSynth->channelData[i]);
+        _synth_printChannel(&testSynth->channelData[i].ampData);
     }
     testSamples = 0;
     while (testSamples < SAMPLE_RATE/2) {

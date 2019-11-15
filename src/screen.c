@@ -1,15 +1,14 @@
-#include "screen.h"
-
 #include <stdlib.h>
 #include <stdbool.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
 
+#include "screen.h"
+
 #define SCREEN_WIDTH 400
 #define SCREEN_HEIGHT 300
 #define SCREEN_SCALING 2
-#define COLUMNS 5
 #define STATUS_ROW 130
 
 typedef struct {
@@ -28,16 +27,16 @@ typedef struct {
     Sint8 *tableToShow;
     Sint16 tableToShowCount;
 
-    Sint8 **mainColumn;
-    Uint8 columnLength[COLUMNS];
-    Uint8 rowOffset;
-    Uint8 selectedColumn;
-    /* Status flags and counters */
+    Track **tracks;
+    char rowNumbers[256][4];
     char* statusMsg;
+    Uint8 rowOffset;
+    Uint8 selectedTrack;
+    Uint8 numberOfTracks;
     Uint8 stepping;
+    Uint8 selectedPatch;
     Uint8 octave;
     bool editMode;
-    char rowNumbers[64][4];
 } Screen;
 
 SDL_Color noteBeatColor = {255,255,255};
@@ -115,7 +114,7 @@ void _screen_createNoteTextures() {
 }
 
 void _screen_initArrays() {
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < 255; i++) {
         sprintf(screen->rowNumbers[i], "%02d", i);
     }
     _screen_createNoteTextures();
@@ -123,7 +122,7 @@ void _screen_initArrays() {
 
 }
 
-bool screen_init() {
+bool screen_init(Uint8 numberOfTracks) {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) < 0) {
         return false;
     }
@@ -136,7 +135,8 @@ bool screen_init() {
         free(screen);
     }
     screen = calloc(1, sizeof(Screen));
-    screen->mainColumn = calloc(COLUMNS, sizeof(Sint8*));
+    screen->numberOfTracks = numberOfTracks;
+    screen->tracks = calloc(numberOfTracks, sizeof(Track*));
 
 
     screen->window = SDL_CreateWindow(
@@ -219,26 +219,35 @@ void screen_print(int x, int y, char* msg, SDL_Color *color) {
     }
 }
 
-void screen_setColumn(Uint8 column, Uint8 rows, Sint8 *mainColumn) {
-    if (column >= COLUMNS) {
+void screen_setTrackData(Uint8 track, Track *trackData) {
+    if (track >= screen->numberOfTracks) {
         return;
     }
-    screen->mainColumn[column] = mainColumn;
-    screen->columnLength[column] = rows;
+    screen->tracks[track] = trackData;
 }
 
-void screen_setSelectedColumn(Uint8 column) {
-    if (column >= COLUMNS) {
+void screen_setSelectedTrack(Uint8 track) {
+    if (track >= screen->numberOfTracks) {
         return;
     }
-    screen->selectedColumn = column;
+    screen->selectedTrack = track;
+}
+
+Uint8 screen_getLongestTrackLength() {
+    Uint8 length = 0;
+    for (int i = 0; i < screen->numberOfTracks; i++) {
+        if (screen->tracks[i] != NULL && screen->tracks[i]->length > length) {
+            length = screen->tracks[i]->length;
+        }
+    }
+    return length;
 }
 
 void screen_setRowOffset(Sint8 rowOffset) {
     if (rowOffset < 0) {
         screen->rowOffset = 0;
-    } else if (rowOffset > 63) {
-        screen->rowOffset = 63;
+    } else if (rowOffset > screen_getLongestTrackLength()-1) {
+        screen->rowOffset = screen_getLongestTrackLength()-1;
     } else {
         screen->rowOffset = rowOffset;
     }
@@ -250,6 +259,11 @@ int getTrackRowY(int row) {
 
 int getColumnOffset(int column) {
     return 40+column*88;
+}
+
+
+void screen_selectPatch(Uint8 patch) {
+   screen->selectedPatch = patch;
 }
 
 void screen_setStepping(Uint8 stepping) {
@@ -293,10 +307,13 @@ void _screen_setEditColor() {
 }
 
 void _screen_renderColumns() {
+    char strbuf[3];
+
     int editOffset = 8;
+    Uint8 maxLength = screen_getLongestTrackLength();
     for (int y = 0; y < 16; y++) {
         int offset = y + screen->rowOffset - editOffset;
-        if (offset > 63) {
+        if (offset > maxLength-1) {
             break;
         }
 
@@ -307,25 +324,29 @@ void _screen_renderColumns() {
             SDL_Color *textColor = isBeat ? &noteBeatColor : &noteColor;
             screen_print(8, screenY, screen->rowNumbers[offset], textColor);
 
-            for (int x = 0; x < COLUMNS; x++) {
-                if (NULL == screen->mainColumn[x]) {
+            for (int x = 0; x < screen->numberOfTracks; x++) {
+                Track *track = screen->tracks[x];
+                if (NULL == track || offset >= track->length) {
                     continue;
                 }
-                Sint8 note = screen->mainColumn[x][offset];
-                if (note >-1) {
+                Note note = track->notes[offset];
+                if (note.note >-1) {
                     SDL_Rect pos = {
                             .x=getColumnOffset(x),
                             .y=screenY,
-                            .w=screen->noteWidth[note],
-                            .h=screen->noteHeight[note]
+                            .w=screen->noteWidth[note.note],
+                            .h=screen->noteHeight[note.note]
                     };
                     SDL_RenderCopy(
                             screen->renderer,
-                            isBeat ? screen->noteBeatTexture[note] : screen->noteTexture[note],
+                            isBeat ? screen->noteBeatTexture[note.note] : screen->noteTexture[note.note],
                                     NULL,
                                     &pos
                     );
-                    screen_print(getColumnOffset(x)+32, screenY, "00", textColor);
+
+                    sprintf(strbuf, "%02X", note.patch);
+
+                    screen_print(getColumnOffset(x)+32, screenY, strbuf, textColor);
                     screen_print(getColumnOffset(x)+56, screenY, "00", textColor);
                 }
             }
@@ -345,7 +366,7 @@ void _screen_renderColumns() {
 
     SDL_SetRenderDrawColor(screen->renderer, 255,255,255,80);
     SDL_Rect pos2 = {
-            .x=getColumnOffset(screen->selectedColumn),
+            .x=getColumnOffset(screen->selectedTrack),
             .y=getTrackRowY(editOffset)-1,
             .w=24,
             .h=9
@@ -360,13 +381,23 @@ void _screen_renderDivisions() {
     SDL_RenderDrawLine(screen->renderer,0,STATUS_ROW+8, SCREEN_WIDTH,STATUS_ROW+8);
 }
 
-void _screen_renderStatus() {
-    char s[3];
-    sprintf(s, "%d", screen->stepping);
-    screen_print(0, STATUS_ROW, s, &statusColor);
-    if (screen->statusMsg != NULL) {
-        screen_print(16, STATUS_ROW, screen->statusMsg, &statusColor);
+void _screen_renderStatusOctave() {
+    for (int i = 0; i < 7; i++) {
+        SDL_Rect pos = {
+                .x=8+i*56,
+                .y=STATUS_ROW,
+                .w=56,
+                .h=8
+        };
+        SDL_RenderCopy(screen->renderer, screen->piano, NULL, &pos);
+        if (i == screen->octave) {
+            SDL_SetRenderDrawColor(screen->renderer, 255,255,255,100);
+            SDL_RenderFillRect(screen->renderer, &pos);
+        }
     }
+}
+
+void _screen_renderIsEditMode() {
     if (screen->editMode) {
         _screen_setEditColor();
         SDL_Rect pos = {
@@ -384,19 +415,32 @@ void _screen_renderStatus() {
         SDL_RenderDrawRect(screen->renderer, &pos);
         SDL_RenderDrawRect(screen->renderer, &pos2);
     }
-    for (int i = 0; i < 7; i++) {
-        SDL_Rect pos = {
-                .x=8+i*56,
-                .y=STATUS_ROW,
-                .w=56,
-                .h=8
-        };
-        SDL_RenderCopy(screen->renderer, screen->piano, NULL, &pos);
-        if (i == screen->octave) {
-            SDL_SetRenderDrawColor(screen->renderer, 255,255,255,100);
-            SDL_RenderFillRect(screen->renderer, &pos);
-        }
+}
+
+void _screen_renderStepping() {
+    char s[3];
+    sprintf(s, "%d", screen->stepping);
+    screen_print(0, STATUS_ROW, s, &statusColor);
+}
+
+void _screen_renderSelectedPatch() {
+    char s[3];
+    sprintf(s, "%02x", screen->selectedPatch);
+    screen_print(0, STATUS_ROW-8, s, &statusColor);
+}
+
+void _screen_renderStatusMessage() {
+    if (screen->statusMsg != NULL) {
+        screen_print(16, STATUS_ROW, screen->statusMsg, &statusColor);
     }
+}
+
+void _screen_renderStatus() {
+    _screen_renderStepping();
+    _screen_renderSelectedPatch();
+    _screen_renderStatusMessage();
+    _screen_renderIsEditMode();
+    _screen_renderStatusOctave();
 }
 
 void _screen_renderGraphs() {

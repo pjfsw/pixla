@@ -4,15 +4,14 @@
 
 #include "screen.h"
 #include "synth.h"
+#include "track.h"
 
 #define CHANNELS 4
+#define DEFAULT_TRACK_LENGTH 64
+
 #define NOTE_OFF 126
 #define NO_NOTE 127
-#define MAX_TRACKS 32
-
-typedef struct {
-    Sint8 notes[64];
-}  Track;
+#define MAX_TRACKS 256
 
 typedef enum {
     STOP,
@@ -34,6 +33,7 @@ typedef struct _Tracker {
     Sint8 keyToNote[256];
     Uint8 stepping;
     Uint8 octave;
+    Uint8 patch;
 
     Synth *synth;
     SDL_TimerID playbackTimerId;
@@ -47,7 +47,13 @@ Tracker *tracker;
 
 
 void clearSong(Song *song) {
-    memset(song->tracks, NO_NOTE, sizeof(Track)*MAX_TRACKS);
+    for (int track = 0; track < MAX_TRACKS; track++) {
+        song->tracks[track].length = DEFAULT_TRACK_LENGTH;;
+        for (int row = 0; row < MAX_TRACK_LENGTH; row++) {
+            song->tracks[track].notes[row].note = NO_NOTE;
+            song->tracks[track].notes[row].patch = 0;
+        }
+    }
 }
 
 void moveToFirstRow(Tracker *tracker) {
@@ -120,12 +126,11 @@ void increaseStepping(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod)
     printf("%d\n",keymod);
 }
 
-void playNote(Synth *synth, Uint8 channel, Sint8 note) {
-    synth_setPwm(synth, channel, 40, 10);
-    synth_noteTrigger(synth, channel, note);
+void playNote(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note) {
+    synth_noteTrigger(synth, channel, patch, note);
 }
 
-Sint8 *getCurrentNote(Tracker *tracker) {
+Note *getCurrentNote(Tracker *tracker) {
     return &tracker->song.tracks[tracker->currentTrack].notes[tracker->rowOffset];
 }
 
@@ -136,10 +141,11 @@ void playOrUpdateNote(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod)
             return;
         }
         if (isEditMode(tracker)) {
-            *getCurrentNote(tracker) = note;
+            getCurrentNote(tracker)->note = note;
+            getCurrentNote(tracker)->patch = tracker->patch;
             moveDownSteps(tracker, tracker->stepping);
         }
-        playNote(tracker->synth, tracker->currentTrack, note);
+        playNote(tracker->synth, tracker->currentTrack, tracker->patch, note);
 
     }
 }
@@ -154,14 +160,15 @@ void skipRow(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
 
 void deleteNote(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     if (isEditMode(tracker)) {
-        *getCurrentNote(tracker) = NO_NOTE;
+        getCurrentNote(tracker)->note = NO_NOTE;
+        getCurrentNote(tracker)->patch = 0;
         moveDownSteps(tracker, tracker->stepping);
     }
 }
 
 void noteOff(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     if (isEditMode(tracker)) {
-        *getCurrentNote(tracker) = NOTE_OFF;
+        getCurrentNote(tracker)->note = NOTE_OFF;
         moveDownSteps(tracker, tracker->stepping);
     }
 }
@@ -176,7 +183,7 @@ void previousColumn(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) 
         return;
     }
     tracker->currentTrack--;
-    screen_setSelectedColumn(tracker->currentTrack);
+    screen_setSelectedTrack(tracker->currentTrack);
 }
 
 void nextColumn(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -184,8 +191,25 @@ void nextColumn(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
         return;
     }
     tracker->currentTrack++;
-    screen_setSelectedColumn(tracker->currentTrack);
+    screen_setSelectedTrack(tracker->currentTrack);
 }
+
+void previousPatch(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
+    tracker->patch--;
+    if (tracker->patch < 1) {
+        tracker->patch = 255;
+    }
+    screen_selectPatch(tracker->patch);
+}
+
+void nextPatch(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
+    tracker->patch++;
+    if (tracker->patch < 1) {
+        tracker->patch = 1;
+    }
+    screen_selectPatch(tracker->patch);
+}
+
 
 void registerNote(Tracker *tracker, SDL_Scancode scancode, Sint8 note) {
     tracker->keyToNote[scancode] = note;
@@ -205,10 +229,22 @@ bool loadSongWithName(Tracker *tracker, char *name) {
     while (!feof(f)) {
         if (3 == fscanf(f, "%s %04x %02x\n", parameter, &address, &value)) {
             if (strcmp(parameter, "note") == 0) {
-                int track = address >> 8;
+                int track = address / 256;
                 int note = address & 255;
-                if (track < MAX_TRACKS && note < 64) {
-                    tracker->song.tracks[track].notes[note] = value;
+                if (track < MAX_TRACKS && note < NO_NOTE) {
+                    Note *target = &tracker->song.tracks[track].notes[note];
+                    target->note = value;
+                    if (target->patch == 0) {
+                        target->patch = track+1;
+                    }
+                }
+            }
+            if (strcmp(parameter, "patch") == 0) {
+                int track = address / 256;
+                int note = address & 255;
+                if (track < MAX_TRACKS && note < NO_NOTE) {
+                    Note *target = &tracker->song.tracks[track].notes[note];
+                    target->patch = value;
                 }
             }
         }
@@ -226,9 +262,11 @@ bool saveSongWithName(Tracker *tracker, char* name) {
     }
     for (int track = 0; track < MAX_TRACKS; track++) {
         for (int row = 0; row < 64; row++) {
-            if (tracker->song.tracks[track].notes[row] != NO_NOTE) {
+            Note note = tracker->song.tracks[track].notes[row];
+            if (note.note != NO_NOTE) {
                 Uint16  encodedNote = (track << 8) + row;
-                fprintf(f, "note %04x %02x\n", encodedNote, tracker->song.tracks[track].notes[row]);
+                fprintf(f, "note %04x %02x\n", encodedNote, note.note);
+                fprintf(f, "patch %04x %02x\n", encodedNote, note.patch);
             }
 
         }
@@ -283,12 +321,13 @@ Uint32 playCallback(Uint32 interval, void *param) {
     Tracker *tracker = (Tracker*)param;
 
     for (int channel = 0; channel < CHANNELS; channel++) {
-        Sint8 note = tracker->song.tracks[channel].notes[tracker->rowOffset];
+        Sint8 note = tracker->song.tracks[channel].notes[tracker->rowOffset].note;
+        Uint8 patch = tracker->song.tracks[channel].notes[tracker->rowOffset].patch;
 
         if (note == NOTE_OFF) {
             synth_noteRelease(tracker->synth, channel);
         } else if (note >= 0 && note < 97) {
-            playNote(tracker->synth, channel, note);
+            playNote(tracker->synth, channel, patch, note);
         }
     }
     screen_setRowOffset(tracker->rowOffset);
@@ -365,10 +404,13 @@ void initKeyHandler() {
     tracker->keyHandler[SDL_SCANCODE_F5] = setOctave;
     tracker->keyHandler[SDL_SCANCODE_F6] = setOctave;
     tracker->keyHandler[SDL_SCANCODE_F7] = setOctave;
+    tracker->keyHandler[SDL_SCANCODE_F9] = previousPatch;
+    tracker->keyHandler[SDL_SCANCODE_F10] = nextPatch;
+    tracker->keyHandler[SDL_SCANCODE_F12] = saveSong;
+
     tracker->keyHandler[SDL_SCANCODE_LEFT] = previousColumn;
     tracker->keyHandler[SDL_SCANCODE_RIGHT] = nextColumn;
     tracker->keyHandler[SDL_SCANCODE_RETURN] = skipRow;
-    tracker->keyHandler[SDL_SCANCODE_F12] = saveSong;
     tracker->keyHandler[SDL_SCANCODE_RCTRL] = playPattern;
     tracker->keyHandler[SDL_SCANCODE_SPACE] = stopSong;
 }
@@ -389,6 +431,7 @@ Tracker *tracker_init() {
     tracker = calloc(1, sizeof(Tracker));
     tracker->song.bpm = 140;
     tracker->stepping = 1;
+    tracker->patch = 1;
 
     if (NULL == (tracker->synth = synth_init(CHANNELS))) {
         tracker_close(tracker);
@@ -404,7 +447,7 @@ int main(int argc, char* args[]) {
 
     Tracker *tracker = tracker_init();
 
-    if (!screen_init()) {
+    if (!screen_init(CHANNELS)) {
         screen_close();
         tracker_close(tracker);
         return 1;
@@ -420,15 +463,106 @@ int main(int argc, char* args[]) {
     //return 0;
 
 
-    screen_setColumn(0, 64, tracker->song.tracks[0].notes);
-    screen_setColumn(1, 64, tracker->song.tracks[1].notes);
-    screen_setColumn(2, 64, tracker->song.tracks[2].notes);
-    screen_setColumn(3, 64, tracker->song.tracks[3].notes);
+    screen_setTrackData(0, &tracker->song.tracks[0]);
+    screen_setTrackData(1, &tracker->song.tracks[1]);
+    screen_setTrackData(2, &tracker->song.tracks[2]);
+    screen_setTrackData(3, &tracker->song.tracks[3]);
 
-    synth_setChannel(tracker->synth, 0, 6, 70, 30, 60, PWM);
-    synth_setChannel(tracker->synth, 1, 10, 30, 70, 60, LOWPASS_PULSE);
-    synth_setChannel(tracker->synth, 2, 0, 20, 40, 50, NOISE);
-    synth_setChannel(tracker->synth, 3, 0, 9, 40, 120, LOWPASS_SAW);
+    Instrument instr1 = {
+            .attack = 6,
+            .decay = 70,
+            .sustain = 30,
+            .release = 60,
+            .waves = {
+                    {
+                            .waveform = PWM,
+                            .note = 0,
+                            .length = 0,
+                            .pwm = 16,
+                            .dutyCycle = 128,
+                    },{
+                            .waveform = PWM,
+                            .note = 0,
+                            .length = 0
+                    }, {
+                            .waveform = PWM,
+                            .note = 0,
+                            .length = 0
+                    }
+            }
+    };
+
+    Instrument instr2 = {
+            .attack = 10,
+            .decay = 30,
+            .sustain = 70,
+            .release = 60,
+            .waves = {
+                    {
+                            .waveform = LOWPASS_PULSE,
+                            .note = 0,
+                            .length = 0
+                    },{
+                            .waveform = LOWPASS_PULSE,
+                            .note = 0,
+                            .length = 0
+                    }, {
+                            .waveform = LOWPASS_PULSE,
+                            .note = 0,
+                            .length = 0
+                    }
+            }
+    };
+
+    Instrument instr3 = {
+            .attack = 0,
+            .decay = 20,
+            .sustain = 40,
+            .release = 50,
+            .waves = {
+                    {
+                            .waveform = NOISE,
+                            .note = 0,
+                            .length = 0
+                    },{
+                            .waveform = NOISE,
+                            .note = 0,
+                            .length = 0
+                    }, {
+                            .waveform = NOISE,
+                            .note = 0,
+                            .length = 0
+                    }
+            }
+    };
+
+    Instrument instr4 = {
+            .attack = 0,
+            .decay = 9,
+            .sustain = 40,
+            .release = 120,
+            .waves = {
+                    {
+                            .waveform = LOWPASS_SAW,
+                            .note = 0,
+                            .length = 0
+                    },{
+                            .waveform = LOWPASS_SAW,
+                            .note = 0,
+                            .length = 0
+                    }, {
+                            .waveform = LOWPASS_SAW,
+                            .note = 0,
+                            .length = 0
+                    }
+            }
+    };
+
+
+    synth_loadPatch(tracker->synth, 1, &instr1);
+    synth_loadPatch(tracker->synth, 2, &instr2);
+    synth_loadPatch(tracker->synth, 3, &instr3);
+    synth_loadPatch(tracker->synth, 4, &instr4);
 
     SDL_Keymod keymod;
     bool quit = false;

@@ -4,13 +4,17 @@
 #include <stdbool.h>
 #include <SDL2/SDL.h>
 
+#include "track.h"
+
 /*
  * Initialize screen
  *
  * After screen_init() has been called, screen_close() must be called before
  * termination
+ *
+ * numerOfTracks The number of tracks to display on screen
  */
-bool screen_init();
+bool screen_init(Uint8 numberOfTracks);
 
 /*
  * Close screen
@@ -21,17 +25,18 @@ void screen_close();
 /*
  * Set pointers to column data to render
  *
- * column the column number, 0 to maximum number of columns-1
- * rows the number of rows to expect in the data
- * mainColumn a pointer to an array of char* containing main column data (3 chars)
+ * track the track number, 0 to maximum number of columns-1
+ * trackData a pointer to an array of tracks containing track data
  */
-void screen_setColumn(Uint8 column, Uint8 rows, Sint8 *mainColumn);
+void screen_setTrackData(Uint8 track, Track *trackData);
 
-void screen_setSelectedColumn(Uint8 column);
+void screen_setSelectedTrack(Uint8 track);
 
 void screen_setStepping(Uint8 stepping);
 
 void screen_setOctave(Uint8 octave);
+
+void screen_selectPatch(Uint8 patch);
 
 void screen_setRowOffset(Sint8 rowOffset);
 
