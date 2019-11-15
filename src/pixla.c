@@ -410,7 +410,7 @@ void initKeyHandler() {
 
     tracker->keyHandler[SDL_SCANCODE_LEFT] = previousColumn;
     tracker->keyHandler[SDL_SCANCODE_RIGHT] = nextColumn;
-    tracker->keyHandler[SDL_SCANCODE_RETURN] = skipRow;
+    tracker->keyHandler[SDL_SCANCODE_RETURN] = noteOff;
     tracker->keyHandler[SDL_SCANCODE_RCTRL] = playPattern;
     tracker->keyHandler[SDL_SCANCODE_SPACE] = stopSong;
 }
@@ -429,7 +429,7 @@ void tracker_close(Tracker *tracker) {
 
 Tracker *tracker_init() {
     tracker = calloc(1, sizeof(Tracker));
-    tracker->song.bpm = 140;
+    tracker->song.bpm = 118;
     tracker->stepping = 1;
     tracker->patch = 1;
 
@@ -469,9 +469,9 @@ int main(int argc, char* args[]) {
     screen_setTrackData(3, &tracker->song.tracks[3]);
 
     Instrument instr1 = {
-            .attack = 6,
-            .decay = 70,
-            .sustain = 30,
+            .attack = 0,
+            .decay = 2,
+            .sustain = 60,
             .release = 60,
             .waves = {
                     {
@@ -516,9 +516,9 @@ int main(int argc, char* args[]) {
 
     Instrument instr3 = {
             .attack = 0,
-            .decay = 20,
-            .sustain = 40,
-            .release = 50,
+            .decay = 10,
+            .sustain = 80,
+            .release = 2,
             .waves = {
                     {
                             .waveform = NOISE,
@@ -538,9 +538,9 @@ int main(int argc, char* args[]) {
 
     Instrument instr4 = {
             .attack = 0,
-            .decay = 9,
-            .sustain = 40,
-            .release = 120,
+            .decay = 3,
+            .sustain = 30,
+            .release = 100,
             .waves = {
                     {
                             .waveform = LOWPASS_SAW,
