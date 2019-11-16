@@ -25,6 +25,7 @@ typedef struct {
     SDL_Texture *noteBeatTexture[128];
     SDL_Texture *asciiTexture[256];
     ColumnHighlightPos columnHighlight[4];
+    bool mute[16];
     int noteWidth[128];
     int noteHeight[128];
     TTF_Font *font;
@@ -307,6 +308,10 @@ void screen_setTrackermode(Trackermode trackermode) {
     screen->trackermode = trackermode;
 }
 
+void screen_setChannelMute(Uint8 track, bool mute) {
+    screen->mute[track] = mute;
+}
+
 
 void screen_setTableToShow(Sint8 *table, Uint8 elements) {
     screen->tableToShow = table;
@@ -387,6 +392,22 @@ void _screen_renderColumns() {
             .h=10
     };
 
+    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(screen->renderer, 0,0,0,200);
+    for (int i = 0; i < screen->numberOfTracks; i++) {
+        if (screen->mute[i]) {
+            SDL_Rect pos2 = {
+                    .x=getColumnOffset(i),
+                    .y=getTrackRowY(0)-1,
+                    .w=80,
+                    .h=160
+            };
+            SDL_RenderFillRect(screen->renderer, &pos2);
+        }
+    }
+
+    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_ADD);
+
     _screen_setEditColor();
     SDL_RenderFillRect(screen->renderer, &pos);
     SDL_SetRenderDrawColor(screen->renderer, 127,127,127,127);
@@ -409,6 +430,7 @@ void _screen_renderColumns() {
         };
         SDL_RenderFillRect(screen->renderer, &pos2);
     }
+
 }
 
 

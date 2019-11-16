@@ -53,6 +53,7 @@ typedef struct _Channel {
     Sint8 noteOffset;
     WaveData waveData;
     AmpData ampData;
+    bool mute;
 } Channel;
 
 /*
@@ -292,7 +293,7 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
             }
 
 
-            if (amp->adsr != OFF) {
+            if (!ch->mute && amp->adsr != OFF) {
                 Sint16 sample = wav->sampleFunc(ch) * amp->amplitude/32768;
                 output += sample;
             }
@@ -475,10 +476,28 @@ void synth_noteOff(Synth *synth, Uint8 channel) {
 }
 
 void synth_frequencyModulation(Synth *synth, Uint8 channel, Uint8 frequency, Uint8 amplitude) {
+    if (synth == NULL || channel >= synth->channels) {
+        return;
+    }
     synth->channelData[channel].waveData.frequencyModulation.frequency = frequency;
     synth->channelData[channel].waveData.frequencyModulation.amplitude = amplitude;
 }
 
+
+bool synth_isChannelMuted(Synth *synth, Uint8 channel) {
+    if (synth == NULL || channel >= synth->channels) {
+        return false;
+    }
+    return synth->channelData[channel].mute;
+}
+
+void synth_muteChannel(Synth *synth, Uint8 channel, bool mute) {
+    if (synth == NULL || channel >= synth->channels) {
+        return;
+    }
+    printf("mute\n");
+    synth->channelData[channel].mute = mute;
+}
 
 
 void _synth_printChannel(AmpData *amp) {

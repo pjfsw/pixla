@@ -47,6 +47,8 @@ void screen_setStatusMessage(char* msg);
 
 void screen_setTrackermode(Trackermode trackermode);
 
+void screen_setChannelMute(Uint8 track, bool mute);
+
 void screen_setTableToShow(Sint8 *table, Uint8 elements);
 /*
  * Update screen

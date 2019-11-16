@@ -149,9 +149,33 @@ void editCommand(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
     moveDownSteps(tracker, tracker->stepping);
 }
 
+void handleAltkeys(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
+    if (scancode == SDL_SCANCODE_Z) {
+        bool mute = !synth_isChannelMuted(tracker->synth, 0);
+        synth_muteChannel(tracker->synth, 0, mute);
+        screen_setChannelMute(0, mute);
+    } else if (scancode == SDL_SCANCODE_X) {
+        bool mute = !synth_isChannelMuted(tracker->synth, 1);
+        synth_muteChannel(tracker->synth, 1, mute);
+        screen_setChannelMute(1, mute);
+    } else if (scancode == SDL_SCANCODE_C) {
+        bool mute = !synth_isChannelMuted(tracker->synth, 2);
+        synth_muteChannel(tracker->synth, 2, mute);
+        screen_setChannelMute(2, mute);
+    } else if (scancode == SDL_SCANCODE_V) {
+        bool mute = !synth_isChannelMuted(tracker->synth, 3);
+        synth_muteChannel(tracker->synth, 3, mute);
+        screen_setChannelMute(3, mute);
+    }
+}
 void playOrUpdateNote(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
     if (isEditMode(tracker) && tracker->currentColumn > 0) {
         editCommand(tracker, scancode, keymod);
+        return;
+    }
+    if (keymod & KMOD_LALT) {
+        printf("herpderp\n");
+        handleAltkeys(tracker, scancode, keymod);
         return;
     }
     if (tracker->keyToNote[scancode] > -1) {

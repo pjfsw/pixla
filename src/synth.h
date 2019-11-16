@@ -60,6 +60,10 @@ void synth_noteOff(Synth *synth, Uint8 channel);
 
 void synth_frequencyModulation(Synth *synth, Uint8 channel, Uint8 frequency, Uint8 amplitude);
 
+void synth_muteChannel(Synth *synth, Uint8 channel, bool mute);
+
+bool synth_isChannelMuted(Synth *synth, Uint8 channel);
+
 void synth_noteRelease(Synth *synth, Uint8 channel);
 
 void synth_noteTrigger(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note);
