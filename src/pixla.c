@@ -28,6 +28,7 @@ typedef struct _Tracker {
     KeyHandler keyHandler[256];
     Sint8 keyToNote[256];
     Uint8 keyToCommandCode[256];
+    Uint8 modulationAmpTable[16];
     Uint8 stepping;
     Uint8 octave;
     Uint8 patch;
@@ -359,6 +360,11 @@ void saveSong(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     }
 }
 
+void resetChannelParams(Synth *synth, Uint8 channel) {
+    synth_pitchOffset(synth, channel, 0);
+    synth_frequencyModulation(synth, channel, 0,0);
+}
+
 void stopPlayback(Tracker *tracker) {
     if (tracker->playbackTimerId != 0) {
         SDL_RemoveTimer(tracker->playbackTimerId);
@@ -368,13 +374,13 @@ void stopPlayback(Tracker *tracker) {
         setMode(tracker, EDIT);
         for (int i = 0; i < CHANNELS; i++) {
             synth_noteOff(tracker->synth, i);
-            synth_pitchOffset(tracker->synth, i, 0);
+            resetChannelParams(tracker->synth, i);
         }
     } else {
         setMode(tracker, STOP);
         for (int i = 0; i < CHANNELS; i++) {
             synth_noteRelease(tracker->synth, i);
-            synth_pitchOffset(tracker->synth, i, 0);
+            resetChannelParams(tracker->synth, i);
         }
     }
 }
@@ -400,6 +406,11 @@ Uint32 playCallback(Uint32 interval, void *param) {
                 synth_noteRelease(tracker->synth, channel);
             } else if (note >= 0 && note < 97) {
                 playNote(tracker->synth, channel, patch, note);
+            }
+            if ((command & 0xF00) == 0x400) {
+                Uint8 freq = (command >> 4) & 0xF;
+                Uint8 amp = command & 0xF;
+                synth_frequencyModulation(tracker->synth, channel, freq * 16, tracker->modulationAmpTable[amp]);
             }
         }
         /* Arpeggio */
@@ -529,6 +540,11 @@ void initKeyHandler() {
     tracker->keyHandler[SDL_SCANCODE_SPACE] = stopSong;
 }
 
+void initModulationAmpTable(Tracker *tracker) {
+    for (int i = 0; i < 16; i++) {
+        tracker->modulationAmpTable[i] = i*3;
+    }
+}
 
 void tracker_close(Tracker *tracker) {
     if (NULL != tracker) {
@@ -571,6 +587,7 @@ int main(int argc, char* args[]) {
     initKeyHandler();
     initNotes();
     initCommandKeys();
+    initModulationAmpTable(tracker);
 
     loadSongWithName(tracker, "song.pxm");
 

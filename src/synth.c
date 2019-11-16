@@ -34,6 +34,7 @@ typedef struct {
     Uint16 dutyCycle;
     Sint8 pwm;
     Uint8 currentSegment;
+    Modulation frequencyModulation;
 } WaveData;
 
 
@@ -67,10 +68,16 @@ typedef struct _Synth {
     Channel *channelData;
     Instrument *instruments;
     Uint8 channels;
+    /** Store sine values between -32768 and 32767 */
+    Sint16 sineTable[65536];
+    /** 8192 represents 1/2 and 32768 represents 2. Mid index 32768 means 16384 aka 1 */
+    Uint16 halfToDoubleModulationTable[65536];
+    Uint32 clock;
 } Synth;
 
 #define SAMPLE_RATE 48000
 #define SAMPLE_RATE_MS 48
+#define MODULATION_SCALER 12
 #define ADSR_PWM_PRESCALER 16
 #define ADSR_MAX_TIME_IN_SECS 5
 
@@ -234,6 +241,24 @@ void _synth_updateWaveform(Synth *synth, Uint8 channel) {
     }
 }
 
+Uint16 _synth_getModulatedFrequency(
+        Synth *synth,
+        Uint16 frequency,
+        Uint32 playtime,
+        Modulation *frequencyModulation
+) {
+
+    if (frequencyModulation->amplitude == 0) {
+        return frequency;
+
+    }
+    Sint16 modulationIndex =  synth->sineTable[(playtime * frequencyModulation->frequency / MODULATION_SCALER) & 0xFFFF];
+    Sint16 scaledModulationIndex = frequencyModulation->amplitude * modulationIndex / 255;
+//    Sint16 scaledModulationIndex = synth->sineTable[(synth->clock) & 0xFFFF];
+
+    return frequency * synth->halfToDoubleModulationTable[scaledModulationIndex+32768] / 16384;
+}
+
 void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
     Synth *synth = (Synth*)userdata;
     Sint8 *buffer = (Sint8*)stream;
@@ -251,7 +276,12 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
             WaveData *wav = &ch->waveData;
             AmpData *amp = &ch->ampData;
 
-            voiceFreq = frequencyTable[((ch->note+ch->noteOffset)) % (sizeof(frequencyTable)/sizeof(Uint16))];
+            voiceFreq = _synth_getModulatedFrequency(
+                    synth,
+                    frequencyTable[((ch->note+ch->noteOffset)) % (sizeof(frequencyTable)/sizeof(Uint16))],
+                    ch->playtime,
+                    &wav->frequencyModulation
+                    );
 
             if (0 == i % ADSR_PWM_PRESCALER) {
                 _synth_updateWaveform(synth, j);
@@ -272,6 +302,7 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
 
         }
         buffer[i] = output * scaler / 128;
+        synth->clock++;
     }
 }
 
@@ -303,14 +334,21 @@ void _synth_initAudioTables(Synth *synth) {
     createFilteredBuffer(getSawAmplitude, synth->lowpassSaw, 4);
 
 
-    for (int i = 0; i < 511; i++) {
+    for (int i = 0; i < 512; i++) {
         synth->attackTable[i] = 11.2*sqrt(i);
     }
-    for (int i = 0; i < 511; i++) {
+    for (int i = 0; i < 512; i++) {
         synth->decayReleaseTable[i] = 13950/(i+50)-24;
     }
-    for (int i = 0; i < 511; i++) {
+    for (int i = 0; i < 512; i++) {
         printf("%d = %d\n", i, synth->attackTable[i]);
+    }
+
+    for (int i = 0; i < 65536; i++) {
+        synth->sineTable[i] = 32767 * sin((double)i/10430.3);
+    }
+    for (int i = 0; i < 65536; i++) {
+        synth->halfToDoubleModulationTable[i] = (double)16384 * pow(2, (double)(i-32768)/(double)32768);
     }
 }
 
@@ -436,9 +474,12 @@ void synth_noteOff(Synth *synth, Uint8 channel) {
     synth->channelData[channel].ampData.adsrTimer = 0;
 }
 
+void synth_frequencyModulation(Synth *synth, Uint8 channel, Uint8 frequency, Uint8 amplitude) {
+    synth->channelData[channel].waveData.frequencyModulation.frequency = frequency;
+    synth->channelData[channel].waveData.frequencyModulation.amplitude = amplitude;
+}
 
 
-Uint8 streamDebug[256];
 
 void _synth_printChannel(AmpData *amp) {
     char *adsrText;

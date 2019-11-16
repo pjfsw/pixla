@@ -31,6 +31,10 @@ typedef struct {
     Wavesegment waves[3];
 } Instrument;
 
+typedef struct {
+    Uint8 frequency;
+    Uint8 amplitude;
+} Modulation;
 
 Synth *synth_init(Uint8 channels);
 
@@ -53,6 +57,8 @@ void synth_notePitch(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note);
 void synth_pitchOffset(Synth *synth, Uint8 channel, Sint8 offset);
 
 void synth_noteOff(Synth *synth, Uint8 channel);
+
+void synth_frequencyModulation(Synth *synth, Uint8 channel, Uint8 frequency, Uint8 amplitude);
 
 void synth_noteRelease(Synth *synth, Uint8 channel);
 
