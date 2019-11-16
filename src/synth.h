@@ -50,6 +50,8 @@ void synth_setPwm(Synth* synth, Uint8 channel, Sint8 dutyCycle, Sint8 pwm);
 
 void synth_notePitch(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note);
 
+void synth_pitchOffset(Synth *synth, Uint8 channel, Sint8 offset);
+
 void synth_noteOff(Synth *synth, Uint8 channel);
 
 void synth_noteRelease(Synth *synth, Uint8 channel);

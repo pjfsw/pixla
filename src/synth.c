@@ -49,6 +49,7 @@ typedef struct _Channel {
     Uint32 playtime;
     Uint8 patch;
     Sint8 note;
+    Sint8 noteOffset;
     WaveData waveData;
     AmpData ampData;
 } Channel;
@@ -250,7 +251,7 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
             WaveData *wav = &ch->waveData;
             AmpData *amp = &ch->ampData;
 
-            voiceFreq = frequencyTable[(ch->note) % (sizeof(frequencyTable)/sizeof(Uint16))];
+            voiceFreq = frequencyTable[((ch->note+ch->noteOffset)) % (sizeof(frequencyTable)/sizeof(Uint16))];
 
             if (0 == i % ADSR_PWM_PRESCALER) {
                 _synth_updateWaveform(synth, j);
@@ -393,9 +394,13 @@ void synth_loadPatch(Synth *synth, Uint8 patch, Instrument *instrument) {
 void _synth_updateAmpData(AmpData *amp) {
     amp->adsr = ATTACK;
     amp->amplitude = 0;
-    amp->adsrTimer = 0;}
+    amp->adsrTimer = 0;
+}
 
 
+void synth_pitchOffset(Synth *synth, Uint8 channel, Sint8 offset) {
+    synth->channelData[channel].noteOffset = offset;
+}
 
 
 void synth_notePitch(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note) {

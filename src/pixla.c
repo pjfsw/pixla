@@ -39,6 +39,7 @@ typedef struct _Tracker {
     Song song;
     Trackermode mode;
     Uint8 currentColumn;
+    Uint8 playbackTick;
 } Tracker;
 
 Tracker *tracker;
@@ -367,11 +368,13 @@ void stopPlayback(Tracker *tracker) {
         setMode(tracker, EDIT);
         for (int i = 0; i < CHANNELS; i++) {
             synth_noteOff(tracker->synth, i);
+            synth_pitchOffset(tracker->synth, i, 0);
         }
     } else {
         setMode(tracker, STOP);
         for (int i = 0; i < CHANNELS; i++) {
             synth_noteRelease(tracker->synth, i);
+            synth_pitchOffset(tracker->synth, i, 0);
         }
     }
 }
@@ -390,15 +393,32 @@ Uint32 playCallback(Uint32 interval, void *param) {
     for (int channel = 0; channel < CHANNELS; channel++) {
         Sint8 note = tracker->song.tracks[channel].notes[tracker->rowOffset].note;
         Uint8 patch = tracker->song.tracks[channel].notes[tracker->rowOffset].patch;
+        Uint16 command = tracker->song.tracks[channel].notes[tracker->rowOffset].command;
 
-        if (note == NOTE_OFF) {
-            synth_noteRelease(tracker->synth, channel);
-        } else if (note >= 0 && note < 97) {
-            playNote(tracker->synth, channel, patch, note);
+        if (tracker->playbackTick == 0) {
+            if (note == NOTE_OFF) {
+                synth_noteRelease(tracker->synth, channel);
+            } else if (note >= 0 && note < 97) {
+                playNote(tracker->synth, channel, patch, note);
+            }
+        }
+        /* Arpeggio */
+        bool isArpeggio = ((command & 0xF00) == 0x000) && command > 0;
+        if (isArpeggio && tracker->playbackTick == 1) {
+            synth_pitchOffset(tracker->synth, channel, command & 0xF);
+        } else if (isArpeggio && tracker->playbackTick == 2) {
+            synth_pitchOffset(tracker->synth, channel, command >> 4);
+        } else if (isArpeggio && tracker->playbackTick == 3) {
+            synth_pitchOffset(tracker->synth, channel, 12);
+        } else {
+            synth_pitchOffset(tracker->synth, channel ,0);
         }
     }
-    screen_setRowOffset(tracker->rowOffset);
-    tracker->rowOffset = (tracker->rowOffset + 1) % 64;
+    if (tracker->playbackTick == 0) {
+        screen_setRowOffset(tracker->rowOffset);
+        tracker->rowOffset = (tracker->rowOffset + 1) % 64;
+    }
+    tracker->playbackTick = (tracker->playbackTick + 1) % 4;
     return interval;
 }
 
@@ -406,7 +426,8 @@ Uint32 playCallback(Uint32 interval, void *param) {
 void playPattern(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     stopPlayback(tracker);
     moveToFirstRow(tracker);
-    tracker->playbackTimerId = SDL_AddTimer(getDelayFromBpm(tracker->song.bpm), playCallback, tracker);
+    tracker->playbackTick = 0;
+    tracker->playbackTimerId = SDL_AddTimer(getDelayFromBpm(tracker->song.bpm)/4, playCallback, tracker);
     setMode(tracker, PLAY);
 };
 
@@ -634,9 +655,9 @@ int main(int argc, char* args[]) {
 
     Instrument instr4 = {
             .attack = 0,
-            .decay = 3,
-            .sustain = 30,
-            .release = 100,
+            .decay = 1,
+            .sustain = 60,
+            .release = 40,
             .waves = {
                     {
                             .waveform = LOWPASS_SAW,
