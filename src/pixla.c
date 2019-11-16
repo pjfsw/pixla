@@ -134,6 +134,7 @@ Note *getCurrentNote(Tracker *tracker) {
     return &tracker->song.tracks[tracker->currentTrack].notes[tracker->rowOffset];
 }
 
+
 void playOrUpdateNote(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
     if (tracker->keyToNote[scancode] > -1) {
         Sint8 note = tracker->keyToNote[scancode] + 12 * tracker->octave;
@@ -146,6 +147,8 @@ void playOrUpdateNote(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod)
             moveDownSteps(tracker, tracker->stepping);
         }
         playNote(tracker->synth, tracker->currentTrack, tracker->patch, note);
+        //SDL_AddTimer(100, stopJamming, tracker);
+        synth_noteRelease(tracker->synth, tracker->currentTrack);
 
     }
 }
@@ -470,8 +473,8 @@ int main(int argc, char* args[]) {
 
     Instrument instr1 = {
             .attack = 0,
-            .decay = 2,
-            .sustain = 60,
+            .decay = 4,
+            .sustain = 50,
             .release = 60,
             .waves = {
                     {
@@ -516,18 +519,20 @@ int main(int argc, char* args[]) {
 
     Instrument instr3 = {
             .attack = 0,
-            .decay = 10,
-            .sustain = 80,
-            .release = 2,
+            .decay = 30,
+            .sustain = 60,
+            .release = 40,
             .waves = {
                     {
                             .waveform = NOISE,
                             .note = 0,
-                            .length = 0
+                            .length = 20
                     },{
-                            .waveform = NOISE,
+                            .waveform = PWM,
                             .note = 0,
-                            .length = 0
+                            .length = 30,
+                            .pwm = 0,
+                            .dutyCycle = 128
                     }, {
                             .waveform = NOISE,
                             .note = 0,

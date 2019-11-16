@@ -33,6 +33,7 @@ typedef struct {
     GetSampleFunc sampleFunc;
     Uint16 dutyCycle;
     Sint8 pwm;
+    Uint8 currentSegment;
 } WaveData;
 
 
@@ -68,6 +69,7 @@ typedef struct _Synth {
 } Synth;
 
 #define SAMPLE_RATE 48000
+#define SAMPLE_RATE_MS 48
 #define ADSR_PWM_PRESCALER 16
 #define ADSR_MAX_TIME_IN_SECS 5
 
@@ -166,6 +168,7 @@ void _synth_updateAdsr(Synth *synth, Channel *ch) {
     }
 }
 
+
 Sint8 _synth_getSampleFromArray(Channel *ch) {
     Sint8 sample = ch->waveData.wave[ch->waveData.wavePos >> 8];
     return sample;
@@ -182,6 +185,52 @@ Sint8 _synth_getPulse(Channel *ch) {
 
 Sint8 _synth_getNoise(Channel *ch) {
     return rand() >> 24;
+}
+
+void _synth_updateWaveform(Synth *synth, Uint8 channel) {
+    Channel *ch =  &synth->channelData[channel];
+    Instrument *instr = &synth->instruments[ch->patch];
+    WaveData *wav = &ch->waveData;
+
+    Uint32 length = 0;
+    Sint8 segment = 0;
+
+    int ms = ch->playtime/SAMPLE_RATE_MS;
+    for (int i = 0; i < 3; i++) {
+        if (instr->waves[i].length == 0 || (ms < length + instr->waves[i].length)) {
+            segment = i;
+            break;
+        }
+        length += instr->waves[i].length;
+    }
+    if (segment == wav->currentSegment) {
+        return;
+    }
+    wav->currentSegment = segment;
+    Wavesegment *waveData = &instr->waves[segment];
+    Waveform waveform = waveData->waveform;
+    ch->waveData.pwm = waveData->pwm;
+    if (waveData->dutyCycle > 0) {
+        ch->waveData.dutyCycle = waveData->dutyCycle << 8;
+    }
+
+
+    switch (waveform) {
+    case LOWPASS_SAW:
+        wav->wave = synth->lowpassSaw;
+        wav->sampleFunc =  _synth_getSampleFromArray;
+        break;
+    case LOWPASS_PULSE:
+        wav->wave = synth->lowpassPulse;
+        wav->sampleFunc =  _synth_getSampleFromArray;
+        break;
+    case PWM:
+        wav->sampleFunc = _synth_getPulse;
+        break;
+    case NOISE:
+        wav->sampleFunc = _synth_getNoise;
+        break;
+    }
 }
 
 void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
@@ -204,7 +253,7 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
             voiceFreq = frequencyTable[(ch->note) % (sizeof(frequencyTable)/sizeof(Uint16))];
 
             if (0 == i % ADSR_PWM_PRESCALER) {
-
+                _synth_updateWaveform(synth, j);
                 _synth_updateAdsr(synth, ch);
                 if (ch->waveData.pwm > 0) {
                     ch->waveData.dutyCycle+=ch->waveData.pwm;
@@ -218,9 +267,10 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
             }
 
             wav->wavePos += (65536 * voiceFreq) / synth->sampleFreq;
+            ch->playtime++;
+
         }
         buffer[i] = output * scaler / 128;
-
     }
 }
 
@@ -346,45 +396,6 @@ void _synth_updateAmpData(AmpData *amp) {
     amp->adsrTimer = 0;}
 
 
-void _synth_updateWaveform(Synth *synth, Uint8 channel) {
-    Channel *ch =  &synth->channelData[channel];
-    Instrument *instr = &synth->instruments[ch->patch];
-    WaveData *wav = &ch->waveData;
-
- /*   Uint32 length = 0;
-    for (int i = 0; i < 3; i++) {
-        if (instr->waves[i].length == 0 || ch->playtime < length + instr->waves[i].length) {
-            waveform = instr->waves[i].waveform;
-            break;
-        }
-        length += instr->waves[i].length;
-    }*/
-
-    Wavesegment *waveData = &instr->waves[0];
-    Waveform waveform = waveData->waveform;
-    ch->waveData.pwm = waveData->pwm;
-    if (waveData->dutyCycle > 0) {
-        ch->waveData.dutyCycle = waveData->dutyCycle << 8;
-    }
-
-
-    switch (waveform) {
-    case LOWPASS_SAW:
-        wav->wave = synth->lowpassSaw;
-        wav->sampleFunc =  _synth_getSampleFromArray;
-        break;
-    case LOWPASS_PULSE:
-        wav->wave = synth->lowpassPulse;
-        wav->sampleFunc =  _synth_getSampleFromArray;
-        break;
-    case PWM:
-        wav->sampleFunc = _synth_getPulse;
-        break;
-    case NOISE:
-        wav->sampleFunc = _synth_getNoise;
-        break;
-    }
-}
 
 
 void synth_notePitch(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note) {
@@ -397,6 +408,7 @@ void synth_noteTrigger(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note) {
     ch->playtime = 0;
     ch->patch = patch;
     ch->waveData.wavePos = 0;
+    ch->waveData.currentSegment = -1;
     _synth_updateWaveform(synth, channel);
     synth_notePitch(synth, channel, patch, note);
     _synth_updateAmpData(&ch->ampData);
