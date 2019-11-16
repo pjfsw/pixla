@@ -113,17 +113,16 @@ void moveDown(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
 
 void increaseStepping(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
     if (keymod & KMOD_LSHIFT) {
+        if (tracker->stepping == 0) {
+            return;
+        }
         tracker->stepping--;
-        if (tracker->stepping < 0) {
-            tracker->stepping = 0;
-        }
     } else {
-        tracker->stepping++;
-        if (tracker->stepping > 8) {
-            tracker->stepping = 8;
+        if (tracker->stepping > 7) {
+            return;
         }
+        tracker->stepping++;
     }
-    printf("%d\n",keymod);
 }
 
 void playNote(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note) {
