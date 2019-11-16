@@ -5,19 +5,15 @@
 #include "screen.h"
 #include "synth.h"
 #include "track.h"
+#include "trackermode.h"
 
 #define CHANNELS 4
 #define DEFAULT_TRACK_LENGTH 64
+#define SUBCOLUMNS 4
 
 #define NOTE_OFF 126
 #define NO_NOTE 127
 #define MAX_TRACKS 256
-
-typedef enum {
-    STOP,
-    EDIT,
-    PLAY
-} Mode;
 
 typedef struct {
     Track tracks[MAX_TRACKS];
@@ -31,6 +27,7 @@ typedef void(*KeyHandler)(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod ke
 typedef struct _Tracker {
     KeyHandler keyHandler[256];
     Sint8 keyToNote[256];
+    Uint8 keyToCommandCode[256];
     Uint8 stepping;
     Uint8 octave;
     Uint8 patch;
@@ -40,7 +37,8 @@ typedef struct _Tracker {
     Sint8 rowOffset;
     Uint8 currentTrack;
     Song song;
-    Mode mode;
+    Trackermode mode;
+    Uint8 currentColumn;
 } Tracker;
 
 Tracker *tracker;
@@ -102,9 +100,9 @@ bool isEditMode(Tracker *tracker) {
     return tracker->mode == EDIT;
 }
 
-void setMode(Tracker *tracker, Mode modeToSet) {
+void setMode(Tracker *tracker, Trackermode modeToSet) {
     tracker->mode = modeToSet;
-    screen_setEditMode(isEditMode(tracker));
+    screen_setTrackermode(tracker->mode);
 };
 
 void moveDown(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
@@ -135,7 +133,25 @@ Note *getCurrentNote(Tracker *tracker) {
 }
 
 
+void editCommand(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
+    if (tracker->currentColumn < 1) {
+        return;
+    }
+    int nibblePos = (3-tracker->currentColumn) * 4;
+    Uint16 mask = 0XFFF - (0xF << nibblePos);
+
+    Note *note = &tracker->song.tracks[tracker->currentTrack].notes[tracker->rowOffset];
+    note->command &= mask;
+    note->command |= (tracker->keyToCommandCode[scancode] << nibblePos);
+
+    moveDownSteps(tracker, tracker->stepping);
+}
+
 void playOrUpdateNote(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
+    if (isEditMode(tracker) && tracker->currentColumn > 0) {
+        editCommand(tracker, scancode, keymod);
+        return;
+    }
     if (tracker->keyToNote[scancode] > -1) {
         Sint8 note = tracker->keyToNote[scancode] + 12 * tracker->octave;
         if (note > 95) {
@@ -181,20 +197,55 @@ void setOctave(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     screen_setOctave(tracker->octave);
 }
 
+void gotoNextTrack(Tracker *tracker) {
+    if (tracker->currentTrack < CHANNELS-1) {
+        tracker->currentTrack++;
+        tracker->currentColumn = 0;
+        screen_setSelectedTrack(tracker->currentTrack);
+    }
+}
+
+void gotoPreviousTrack(Tracker *tracker) {
+    if (tracker->currentTrack > 0) {
+        tracker->currentTrack--;
+        tracker->currentColumn = 0;
+        screen_setSelectedTrack(tracker->currentTrack);
+    }
+}
+
+void previousOrNextColumn(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
+    if (keymod & KMOD_LSHIFT) {
+        gotoPreviousTrack(tracker);
+    } else {
+        gotoNextTrack(tracker);
+    }
+}
+
 void previousColumn(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (tracker->currentTrack == 0) {
+    if (tracker->mode != EDIT) {
+        gotoPreviousTrack(tracker);
         return;
     }
-    tracker->currentTrack--;
-    screen_setSelectedTrack(tracker->currentTrack);
+    if (tracker->currentColumn > 0) {
+        tracker->currentColumn--;
+    } else if (tracker->currentTrack > 0) {
+        gotoPreviousTrack(tracker);
+        tracker->currentColumn = SUBCOLUMNS-1;
+    }
+    screen_setSelectedColumn(tracker->currentColumn);
 }
 
 void nextColumn(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (tracker->currentTrack == CHANNELS-1) {
+    if (tracker->mode != EDIT) {
+        gotoNextTrack(tracker);
         return;
     }
-    tracker->currentTrack++;
-    screen_setSelectedTrack(tracker->currentTrack);
+    if (tracker->currentColumn < SUBCOLUMNS-1) {
+        tracker->currentColumn++;
+        screen_setSelectedColumn(tracker->currentColumn);
+    } else {
+        gotoNextTrack(tracker);
+    }
 }
 
 void previousPatch(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -232,11 +283,11 @@ bool loadSongWithName(Tracker *tracker, char *name) {
     }
     clearSong(&tracker->song);
     while (!feof(f)) {
-        if (3 == fscanf(f, "%s %04x %02x\n", parameter, &address, &value)) {
+        if (3 == fscanf(f, "%s %04x %04x\n", parameter, &address, &value)) {
             if (strcmp(parameter, "note") == 0) {
                 int track = address / 256;
                 int note = address & 255;
-                if (track < MAX_TRACKS && note < NO_NOTE) {
+                if (track < MAX_TRACKS && note < MAX_TRACK_LENGTH) {
                     Note *target = &tracker->song.tracks[track].notes[note];
                     target->note = value;
                     if (target->patch == 0) {
@@ -247,9 +298,17 @@ bool loadSongWithName(Tracker *tracker, char *name) {
             if (strcmp(parameter, "patch") == 0) {
                 int track = address / 256;
                 int note = address & 255;
-                if (track < MAX_TRACKS && note < NO_NOTE) {
+                if (track < MAX_TRACKS && note < MAX_TRACK_LENGTH) {
                     Note *target = &tracker->song.tracks[track].notes[note];
                     target->patch = value;
+                }
+            }
+            if (strcmp(parameter, "cmd") == 0) {
+                int track = address / 256;
+                int note = address & 255;
+                if (track < MAX_TRACKS && note < MAX_TRACK_LENGTH) {
+                    Note *target = &tracker->song.tracks[track].notes[note];
+                    target->command = value;
                 }
             }
         }
@@ -266,12 +325,15 @@ bool saveSongWithName(Tracker *tracker, char* name) {
         return false;
     }
     for (int track = 0; track < MAX_TRACKS; track++) {
-        for (int row = 0; row < 64; row++) {
+        for (int row = 0; row < tracker->song.tracks[track].length; row++) {
             Note note = tracker->song.tracks[track].notes[row];
+            Uint16  encodedNote = (track << 8) + row;
             if (note.note != NO_NOTE) {
-                Uint16  encodedNote = (track << 8) + row;
                 fprintf(f, "note %04x %02x\n", encodedNote, note.note);
                 fprintf(f, "patch %04x %02x\n", encodedNote, note.patch);
+            }
+            if (note.command != 0) {
+                fprintf(f, "cmd %04x %03x\n", encodedNote, note.command & 0xFFF);
             }
 
         }
@@ -390,8 +452,33 @@ void initNotes() {
 
 }
 
+void initCommandKeys() {
+    tracker->keyToCommandCode[SDL_SCANCODE_0] = 0;
+    tracker->keyToCommandCode[SDL_SCANCODE_1] = 1;
+    tracker->keyToCommandCode[SDL_SCANCODE_2] = 2;
+    tracker->keyToCommandCode[SDL_SCANCODE_3] = 3;
+    tracker->keyToCommandCode[SDL_SCANCODE_4] = 4;
+    tracker->keyToCommandCode[SDL_SCANCODE_5] = 5;
+    tracker->keyToCommandCode[SDL_SCANCODE_6] = 6;
+    tracker->keyToCommandCode[SDL_SCANCODE_7] = 7;
+    tracker->keyToCommandCode[SDL_SCANCODE_8] = 8;
+    tracker->keyToCommandCode[SDL_SCANCODE_9] = 9;
+    tracker->keyToCommandCode[SDL_SCANCODE_A] = 10;
+    tracker->keyToCommandCode[SDL_SCANCODE_B] = 11;
+    tracker->keyToCommandCode[SDL_SCANCODE_C] = 12;
+    tracker->keyToCommandCode[SDL_SCANCODE_D] = 13;
+    tracker->keyToCommandCode[SDL_SCANCODE_E] = 14;
+    tracker->keyToCommandCode[SDL_SCANCODE_F] = 15;
+}
+
 void initKeyHandler() {
     memset(tracker->keyHandler, 0, sizeof(KeyHandler*)*256);
+    tracker->keyHandler[SDL_SCANCODE_1] = editCommand;
+    tracker->keyHandler[SDL_SCANCODE_4] = editCommand;
+    tracker->keyHandler[SDL_SCANCODE_8] = editCommand;
+    tracker->keyHandler[SDL_SCANCODE_A] = editCommand;
+    tracker->keyHandler[SDL_SCANCODE_F] = editCommand;
+
     tracker->keyHandler[SDL_SCANCODE_UP] = moveUp;
     tracker->keyHandler[SDL_SCANCODE_DOWN] = moveDown;
     tracker->keyHandler[SDL_SCANCODE_PAGEUP] = moveUpMany;
@@ -413,6 +500,7 @@ void initKeyHandler() {
     tracker->keyHandler[SDL_SCANCODE_F10] = nextPatch;
     tracker->keyHandler[SDL_SCANCODE_F12] = saveSong;
 
+    tracker->keyHandler[SDL_SCANCODE_TAB] = previousOrNextColumn;
     tracker->keyHandler[SDL_SCANCODE_LEFT] = previousColumn;
     tracker->keyHandler[SDL_SCANCODE_RIGHT] = nextColumn;
     tracker->keyHandler[SDL_SCANCODE_RETURN] = noteOff;
@@ -461,6 +549,7 @@ int main(int argc, char* args[]) {
     clearSong(&tracker->song);
     initKeyHandler();
     initNotes();
+    initCommandKeys();
 
     loadSongWithName(tracker, "song.pxm");
 

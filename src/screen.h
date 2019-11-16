@@ -5,6 +5,7 @@
 #include <SDL2/SDL.h>
 
 #include "track.h"
+#include "trackermode.h"
 
 /*
  * Initialize screen
@@ -32,6 +33,8 @@ void screen_setTrackData(Uint8 track, Track *trackData);
 
 void screen_setSelectedTrack(Uint8 track);
 
+void screen_setSelectedColumn(Uint8 column);
+
 void screen_setStepping(Uint8 stepping);
 
 void screen_setOctave(Uint8 octave);
@@ -42,7 +45,7 @@ void screen_setRowOffset(Sint8 rowOffset);
 
 void screen_setStatusMessage(char* msg);
 
-void screen_setEditMode(bool isEditMode);
+void screen_setTrackermode(Trackermode trackermode);
 
 void screen_setTableToShow(Sint8 *table, Uint8 elements);
 /*

@@ -12,6 +12,11 @@
 #define STATUS_ROW 130
 
 typedef struct {
+    Uint8 x;
+    Uint8 w;
+} ColumnHighlightPos;
+
+typedef struct {
     SDL_Window *window;
     SDL_Renderer *renderer;
     SDL_Texture *logo;
@@ -19,6 +24,7 @@ typedef struct {
     SDL_Texture *noteTexture[128];
     SDL_Texture *noteBeatTexture[128];
     SDL_Texture *asciiTexture[256];
+    ColumnHighlightPos columnHighlight[4];
     int noteWidth[128];
     int noteHeight[128];
     TTF_Font *font;
@@ -32,11 +38,12 @@ typedef struct {
     char* statusMsg;
     Uint8 rowOffset;
     Uint8 selectedTrack;
+    Uint8 selectedColumn;
     Uint8 numberOfTracks;
     Uint8 stepping;
     Uint8 selectedPatch;
     Uint8 octave;
-    bool editMode;
+    Trackermode trackermode;
 } Screen;
 
 SDL_Color noteBeatColor = {255,255,255};
@@ -113,12 +120,24 @@ void _screen_createNoteTextures() {
     }
 }
 
+void _screen_setupColumnHighlighters() {
+    screen->columnHighlight[0].x = 0;
+    screen->columnHighlight[0].w = 48;
+    screen->columnHighlight[1].x = 56;
+    screen->columnHighlight[1].w = 8;
+    screen->columnHighlight[2].x = 64;
+    screen->columnHighlight[2].w = 8;
+    screen->columnHighlight[3].x = 72;
+    screen->columnHighlight[3].w = 8;
+}
+
 void _screen_initArrays() {
     for (int i = 0; i < 255; i++) {
         sprintf(screen->rowNumbers[i], "%02d", i);
     }
     _screen_createNoteTextures();
     _screen_createAsciiTextures();
+    _screen_setupColumnHighlighters();
 
 }
 
@@ -226,10 +245,15 @@ void screen_setTrackData(Uint8 track, Track *trackData) {
     screen->tracks[track] = trackData;
 }
 
+void screen_setSelectedColumn(Uint8 column) {
+    screen->selectedColumn = column;
+}
+
 void screen_setSelectedTrack(Uint8 track) {
     if (track >= screen->numberOfTracks) {
         return;
     }
+    screen->selectedColumn = 0;
     screen->selectedTrack = track;
 }
 
@@ -258,7 +282,7 @@ int getTrackRowY(int row) {
 }
 
 int getColumnOffset(int column) {
-    return 40+column*88;
+    return 36+column*92;
 }
 
 
@@ -279,9 +303,10 @@ void screen_setStatusMessage(char* msg) {
     screen->statusMsg = msg;
 }
 
-void screen_setEditMode(bool isEditMode) {
-    screen->editMode = isEditMode;
+void screen_setTrackermode(Trackermode trackermode) {
+    screen->trackermode = trackermode;
 }
+
 
 void screen_setTableToShow(Sint8 *table, Uint8 elements) {
     screen->tableToShow = table;
@@ -307,7 +332,7 @@ void _screen_setEditColor() {
 }
 
 void _screen_renderColumns() {
-    char strbuf[3];
+    char strbuf[5];
 
     int editOffset = 8;
     Uint8 maxLength = screen_getLongestTrackLength();
@@ -344,10 +369,12 @@ void _screen_renderColumns() {
                                     &pos
                     );
 
-                    sprintf(strbuf, "%02X", note.patch);
 
+                    sprintf(strbuf, "%02X", note.patch);
                     screen_print(getColumnOffset(x)+32, screenY, strbuf, textColor);
-                    screen_print(getColumnOffset(x)+56, screenY, "00", textColor);
+
+                    sprintf(strbuf, "%03X", note.command % 0xFFF);
+                    screen_print(getColumnOffset(x)+56, screenY, strbuf, textColor);
                 }
             }
         }
@@ -357,22 +384,31 @@ void _screen_renderColumns() {
             .x=0,
             .y=getTrackRowY(editOffset)-1,
             .w=SCREEN_WIDTH,
-            .h=9
+            .h=10
     };
 
     _screen_setEditColor();
     SDL_RenderFillRect(screen->renderer, &pos);
+    SDL_SetRenderDrawColor(screen->renderer, 127,127,127,127);
 
+    if (screen->trackermode == EDIT && (SDL_GetTicks()/400) % 2 == 0) {
+        SDL_Rect pos2 = {
+                .x=getColumnOffset(screen->selectedTrack)+screen->columnHighlight[screen->selectedColumn].x,
+                .y=getTrackRowY(editOffset)-1,
+                .w=screen->columnHighlight[screen->selectedColumn].w,
+                .h=10
+        };
+        SDL_RenderFillRect(screen->renderer, &pos2);
+    } else if (screen->trackermode == STOP) {
 
-    SDL_SetRenderDrawColor(screen->renderer, 255,255,255,80);
-    SDL_Rect pos2 = {
-            .x=getColumnOffset(screen->selectedTrack),
-            .y=getTrackRowY(editOffset)-1,
-            .w=24,
-            .h=9
-
-    };
-    SDL_RenderFillRect(screen->renderer, &pos2);
+        SDL_Rect pos2 = {
+                .x=getColumnOffset(screen->selectedTrack),
+                .y=getTrackRowY(editOffset)-1,
+                .w=80,
+                .h=10
+        };
+        SDL_RenderFillRect(screen->renderer, &pos2);
+    }
 }
 
 
@@ -398,7 +434,7 @@ void _screen_renderStatusOctave() {
 }
 
 void _screen_renderIsEditMode() {
-    if (screen->editMode) {
+    if (screen->trackermode == EDIT) {
         _screen_setEditColor();
         SDL_Rect pos = {
                 .x=0,

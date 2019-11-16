@@ -6,6 +6,7 @@
 typedef struct {
     Sint8 note;
     Uint8 patch;
+    Uint16 command;
 } Note;
 
 typedef struct {
