@@ -198,17 +198,19 @@ void nextColumn(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
 }
 
 void previousPatch(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    tracker->patch--;
-    if (tracker->patch < 1) {
+    if (tracker->patch <= 1) {
         tracker->patch = 255;
+    } else {
+        tracker->patch--;
     }
     screen_selectPatch(tracker->patch);
 }
 
 void nextPatch(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    tracker->patch++;
-    if (tracker->patch < 1) {
+    if (tracker->patch == 255) {
         tracker->patch = 1;
+    } else {
+        tracker->patch++;
     }
     screen_selectPatch(tracker->patch);
 }
@@ -462,7 +464,7 @@ int main(int argc, char* args[]) {
 
     loadSongWithName(tracker, "song.pxm");
 
-    synth_test();
+    //synth_test();
     //return 0;
 
 
@@ -481,8 +483,8 @@ int main(int argc, char* args[]) {
                             .waveform = PWM,
                             .note = 0,
                             .length = 0,
-                            .pwm = 16,
-                            .dutyCycle = 128,
+                            .pwm = 5,
+                            .dutyCycle = 108,
                     },{
                             .waveform = PWM,
                             .note = 0,
@@ -496,9 +498,9 @@ int main(int argc, char* args[]) {
     };
 
     Instrument instr2 = {
-            .attack = 10,
-            .decay = 30,
-            .sustain = 70,
+            .attack = 0,
+            .decay = 2,
+            .sustain = 20,
             .release = 60,
             .waves = {
                     {
@@ -519,14 +521,14 @@ int main(int argc, char* args[]) {
 
     Instrument instr3 = {
             .attack = 0,
-            .decay = 30,
-            .sustain = 60,
-            .release = 40,
+            .decay = 20,
+            .sustain = 100,
+            .release = 20,
             .waves = {
                     {
                             .waveform = NOISE,
                             .note = 0,
-                            .length = 20
+                            .length = 10
                     },{
                             .waveform = PWM,
                             .note = 0,
