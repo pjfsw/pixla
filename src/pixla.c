@@ -194,6 +194,7 @@ void deleteNote(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     if (isEditMode(tracker)) {
         getCurrentNote(tracker)->note = NOTE_NONE;
         getCurrentNote(tracker)->patch = 0;
+        getCurrentNote(tracker)->command = 0;
         moveDownSteps(tracker, tracker->stepping);
     }
 }
@@ -654,10 +655,111 @@ int main(int argc, char* args[]) {
     };
 
 
+    Instrument instr5 = {
+            .attack = 0,
+            .decay = 4,
+            .sustain = 64,
+            .release = 10,
+            .waves = {
+                    {
+                            .waveform = PWM,
+                            .note = 0,
+                            .length = 0,
+                            .pwm = 20,
+                            .dutyCycle = 18,
+                    },{
+                            .waveform = PWM,
+                            .note = 0,
+                            .length = 0
+                    }, {
+                            .waveform = PWM,
+                            .note = 0,
+                            .length = 0
+                    }
+            }
+    };
+
+    Instrument instr6 = {
+            .attack = 120,
+            .decay = 0,
+            .sustain = 60,
+            .release = 30,
+            .waves = {
+                    {
+                            .waveform = PWM,
+                            .note = 0,
+                            .length = 0,
+                            .pwm = 2,
+                            .dutyCycle = 28,
+                    },{
+                            .waveform = PWM,
+                            .note = 0,
+                            .length = 0
+                    }, {
+                            .waveform = PWM,
+                            .note = 0,
+                            .length = 0
+                    }
+            }
+    };
+
+
+    Instrument instr7 = {
+            .attack = 0,
+            .decay = 10,
+            .sustain = 40,
+            .release = 30,
+            .waves = {
+                    {
+                            .waveform = PWM,
+                            .note = 0,
+                            .length = 0,
+                            .pwm = 2,
+                            .dutyCycle = 28,
+                    },{
+                            .waveform = PWM,
+                            .note = 0,
+                            .length = 0
+                    }, {
+                            .waveform = PWM,
+                            .note = 0,
+                            .length = 0
+                    }
+            }
+    };
+
+    Instrument instr8 = {
+            .attack = 0,
+            .decay = 2,
+            .sustain = 0,
+            .release = 0,
+            .waves = {
+                    {
+                            .waveform = NOISE,
+                            .note = 0,
+                            .length = 10,
+                    },{
+                            .waveform = LOWPASS_SAW,
+                            .note = 0,
+                            .length = 0
+                    }, {
+                            .waveform = NOISE,
+                            .note = 0,
+                            .length = 0
+                    }
+            }
+    };
+
+
+
     synth_loadPatch(tracker->synth, 1, &instr1);
     synth_loadPatch(tracker->synth, 2, &instr2);
     synth_loadPatch(tracker->synth, 3, &instr3);
     synth_loadPatch(tracker->synth, 4, &instr4);
+    synth_loadPatch(tracker->synth, 5, &instr5);
+    synth_loadPatch(tracker->synth, 6, &instr6);
+    synth_loadPatch(tracker->synth, 7, &instr7);
+    synth_loadPatch(tracker->synth, 8, &instr8);
 
     SDL_Keymod keymod;
     bool quit = false;
