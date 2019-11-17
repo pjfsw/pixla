@@ -321,6 +321,7 @@ void screen_setTableToShow(Sint8 *table, Uint8 elements) {
 
 
 void _screen_renderLogo() {
+    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_ADD);
     if (screen->logo != NULL) {
         SDL_Rect pos = {
                 .x=SCREEN_WIDTH-screen->logo_w,
@@ -336,11 +337,23 @@ void _screen_setEditColor() {
     SDL_SetRenderDrawColor(screen->renderer, 255,0,255,100);
 }
 
+void _screen_setDisabledCursorColor() {
+    SDL_SetRenderDrawColor(screen->renderer, 147,40,147,100);
+}
+
+void _screen_setEnabledCursorColor() {
+    SDL_SetRenderDrawColor(screen->renderer, 255,255,255,100);
+}
+
+
 void _screen_renderColumns() {
     char strbuf[5];
 
     int editOffset = 8;
     Uint8 maxLength = screen_getLongestTrackLength();
+
+    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
+
     for (int y = 0; y < 16; y++) {
         int offset = y + screen->rowOffset - editOffset;
         if (offset > maxLength-1) {
@@ -410,31 +423,28 @@ void _screen_renderColumns() {
 
     _screen_setEditColor();
     SDL_RenderFillRect(screen->renderer, &pos);
-    SDL_SetRenderDrawColor(screen->renderer, 127,127,127,127);
 
-    if (screen->trackermode == EDIT && (SDL_GetTicks()/400) % 2 == 0) {
+    if (screen->trackermode != PLAY) {
+        if (screen->trackermode == EDIT) {
+            _screen_setEnabledCursorColor();
+        } else {
+            _screen_setDisabledCursorColor();
+        }
         SDL_Rect pos2 = {
-                .x=getColumnOffset(screen->selectedTrack)+screen->columnHighlight[screen->selectedColumn].x,
-                .y=getTrackRowY(editOffset)-1,
-                .w=screen->columnHighlight[screen->selectedColumn].w,
-                .h=10
+                .x=getColumnOffset(screen->selectedTrack)+screen->columnHighlight[screen->selectedColumn].x-2,
+                .y=getTrackRowY(editOffset)-2,
+                .w=screen->columnHighlight[screen->selectedColumn].w+3,
+                .h=12
         };
-        SDL_RenderFillRect(screen->renderer, &pos2);
-    } else if (screen->trackermode == STOP) {
 
-        SDL_Rect pos2 = {
-                .x=getColumnOffset(screen->selectedTrack),
-                .y=getTrackRowY(editOffset)-1,
-                .w=80,
-                .h=10
-        };
-        SDL_RenderFillRect(screen->renderer, &pos2);
+        SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
+        SDL_RenderDrawRect(screen->renderer, &pos2);
     }
-
 }
 
 
 void _screen_renderDivisions() {
+    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
     SDL_SetRenderDrawColor(screen->renderer, 77,77,77,255);
     SDL_RenderDrawLine(screen->renderer,0,STATUS_ROW+8, SCREEN_WIDTH,STATUS_ROW+8);
 }
@@ -494,6 +504,7 @@ void _screen_renderStatusMessage() {
 }
 
 void _screen_renderStatus() {
+    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_ADD);
     _screen_renderStepping();
     _screen_renderSelectedPatch();
     _screen_renderStatusMessage();
@@ -501,31 +512,13 @@ void _screen_renderStatus() {
     _screen_renderStatusOctave();
 }
 
-void _screen_renderGraphs() {
-    if (screen->tableToShow != NULL) {
-        SDL_Rect pos = {
-                .x=10,
-                .y=2,
-                .w=130,
-                .h=128
-        };
-        SDL_RenderDrawRect(screen->renderer, &pos);
-        for (int i = 0; i < screen->tableToShowCount; i++) {
-            SDL_RenderDrawPoint(screen->renderer, i+pos.x+1, (pos.y+pos.h)-(screen->tableToShow[i]));
-        }
-
-    }
-}
-
 void screen_update() {
     SDL_RenderClear(screen->renderer);
     _screen_renderDivisions();
-    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_ADD);
     _screen_renderLogo();
     _screen_renderColumns();
     _screen_renderStatus();
-    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
-    _screen_renderGraphs();
+/*    _screen_renderGraphs();*/
     SDL_SetRenderDrawColor(screen->renderer, 0,0,0,0);
     SDL_RenderPresent(screen->renderer);
 }

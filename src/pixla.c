@@ -123,7 +123,7 @@ Note *getCurrentNote(Tracker *tracker) {
 
 
 void editCommand(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
-    if (tracker->currentColumn < 1) {
+    if (!isEditMode(tracker) || tracker->currentColumn < 1) {
         return;
     }
     int nibblePos = (3-tracker->currentColumn) * 4;
@@ -235,10 +235,6 @@ void previousOrNextColumn(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod ke
 }
 
 void previousColumn(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (tracker->mode != EDIT) {
-        gotoPreviousTrack(tracker);
-        return;
-    }
     if (tracker->currentColumn > 0) {
         tracker->currentColumn--;
     } else if (tracker->currentTrack > 0) {
@@ -249,10 +245,6 @@ void previousColumn(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) 
 }
 
 void nextColumn(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (tracker->mode != EDIT) {
-        gotoNextTrack(tracker);
-        return;
-    }
     if (tracker->currentColumn < SUBCOLUMNS-1) {
         tracker->currentColumn++;
         screen_setSelectedColumn(tracker->currentColumn);
