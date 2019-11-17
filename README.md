@@ -27,5 +27,5 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
   - A note modifier keyword:
     - = 00 no change
     - < 00 subtract this from current note value, effectively adding the absolute value to the played note
-    - > 00 play the specified note regardless of the note in the tracker
+    - \> 00 play the specified note regardless of the note in the tracker
 
