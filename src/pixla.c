@@ -28,6 +28,7 @@ typedef struct _Tracker {
     Uint8 stepping;
     Uint8 octave;
     Uint8 patch;
+    Track trackClipboard;
 
     Sint8 rowOffset;
     Uint8 currentTrack;
@@ -39,13 +40,20 @@ typedef struct _Tracker {
 Tracker *tracker;
 
 
+
+
+void clearTrack(Track *track) {
+    track->length = DEFAULT_TRACK_LENGTH;;
+    for (int row = 0; row < MAX_TRACK_LENGTH; row++) {
+        track->notes[row].note = NOTE_NONE;
+        track->notes[row].patch = 0;
+        track->notes[row].command = 0;
+    }
+}
+
 void clearSong(Song *song) {
     for (int track = 0; track < MAX_TRACKS; track++) {
-        song->tracks[track].length = DEFAULT_TRACK_LENGTH;;
-        for (int row = 0; row < MAX_TRACK_LENGTH; row++) {
-            song->tracks[track].notes[row].note = NOTE_NONE;
-            song->tracks[track].notes[row].patch = 0;
-        }
+        clearTrack(&song->tracks[track]);
     }
 }
 
@@ -101,7 +109,7 @@ void moveDown(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
 }
 
 void increaseStepping(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
-    if (keymod & KMOD_LSHIFT) {
+    if (keymod & KMOD_SHIFT) {
         if (tracker->stepping == 0) {
             return;
         }
@@ -193,9 +201,17 @@ void skipRow(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
 
 void deleteNote(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     if (isEditMode(tracker)) {
-        getCurrentNote(tracker)->note = NOTE_NONE;
-        getCurrentNote(tracker)->patch = 0;
-        getCurrentNote(tracker)->command = 0;
+        if (keymod & KMOD_SHIFT) {
+            printf("DERPES\n");
+            getCurrentNote(tracker)->note = NOTE_NONE;
+            getCurrentNote(tracker)->patch = 0;
+            getCurrentNote(tracker)->command = 0;
+        } else if (tracker->currentColumn == 0) {
+            getCurrentNote(tracker)->note = NOTE_NONE;
+            getCurrentNote(tracker)->patch = 0;
+        } else if (tracker->currentColumn > 0) {
+            getCurrentNote(tracker)->command = 0;
+        }
         moveDownSteps(tracker, tracker->stepping);
     }
 }
@@ -207,9 +223,51 @@ void noteOff(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     }
 }
 
-void setOctave(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    tracker->octave = scancode - SDL_SCANCODE_F1;
+void previousOctave(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
+    if (tracker->octave == 0) {
+        return;
+    }
+    tracker->octave--;
     screen_setOctave(tracker->octave);
+}
+
+void nextOctave(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
+    if (tracker->octave >= 6) {
+        return;
+    }
+    tracker->octave++;
+    screen_setOctave(tracker->octave);
+}
+
+void copyTrack(Tracker *tracker, Uint8 track) {
+    memcpy(&tracker->trackClipboard, &tracker->song.tracks[track], sizeof(Track));
+}
+
+void cutTrack(Tracker *tracker, Uint8 track) {
+    copyTrack(tracker, track);
+    clearTrack(&tracker->song.tracks[track]);
+}
+
+void cutData(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
+    if (keymod & KMOD_SHIFT) {
+        cutTrack(tracker, tracker->currentTrack);
+    }
+}
+
+void copyData(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
+    if (keymod & KMOD_SHIFT) {
+        copyTrack(tracker, tracker->currentTrack);
+    }
+}
+
+void pasteTrack(Tracker *tracker, Uint8 track) {
+    memcpy(&tracker->song.tracks[track], &tracker->trackClipboard, sizeof(Track));
+}
+
+void pasteData(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
+    if (keymod & KMOD_SHIFT) {
+        pasteTrack(tracker, tracker->currentTrack);
+    }
 }
 
 void gotoNextTrack(Tracker *tracker) {
@@ -229,7 +287,7 @@ void gotoPreviousTrack(Tracker *tracker) {
 }
 
 void previousOrNextColumn(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (keymod & KMOD_LSHIFT) {
+    if (keymod & KMOD_SHIFT) {
         gotoPreviousTrack(tracker);
     } else {
         gotoNextTrack(tracker);
@@ -481,13 +539,12 @@ void initKeyHandler() {
     tracker->keyHandler[SDL_SCANCODE_END] = moveEnd;
     tracker->keyHandler[SDL_SCANCODE_GRAVE] = increaseStepping;
     tracker->keyHandler[SDL_SCANCODE_NONUSBACKSLASH] = noteOff;
-    tracker->keyHandler[SDL_SCANCODE_F1] = setOctave;
-    tracker->keyHandler[SDL_SCANCODE_F2] = setOctave;
-    tracker->keyHandler[SDL_SCANCODE_F3] = setOctave;
-    tracker->keyHandler[SDL_SCANCODE_F4] = setOctave;
-    tracker->keyHandler[SDL_SCANCODE_F5] = setOctave;
-    tracker->keyHandler[SDL_SCANCODE_F6] = setOctave;
-    tracker->keyHandler[SDL_SCANCODE_F7] = setOctave;
+    tracker->keyHandler[SDL_SCANCODE_F1] = previousOctave;
+    tracker->keyHandler[SDL_SCANCODE_F2] = nextOctave;
+    tracker->keyHandler[SDL_SCANCODE_F3] = cutData;
+    tracker->keyHandler[SDL_SCANCODE_F4] = copyData;
+    tracker->keyHandler[SDL_SCANCODE_F5] = pasteData;
+
     tracker->keyHandler[SDL_SCANCODE_F9] = previousPatch;
     tracker->keyHandler[SDL_SCANCODE_F10] = nextPatch;
     tracker->keyHandler[SDL_SCANCODE_F12] = saveSong;
