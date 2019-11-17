@@ -50,7 +50,6 @@ void clearSong(Song *song) {
 
 void moveToFirstRow(Tracker *tracker) {
     tracker->rowOffset = 0;
-    screen_setRowOffset(tracker->rowOffset);
 }
 
 void moveHome(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -59,7 +58,6 @@ void moveHome(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
 
 void moveEnd(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     tracker->rowOffset = 63;
-    screen_setRowOffset(tracker->rowOffset);
 }
 
 void moveUpSteps(Tracker *tracker, int steps) {
@@ -67,7 +65,6 @@ void moveUpSteps(Tracker *tracker, int steps) {
     if (tracker->rowOffset < 0) {
         tracker->rowOffset += 64;
     }
-    screen_setRowOffset(tracker->rowOffset);
 }
 
 void moveUp(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -83,7 +80,6 @@ void moveDownSteps(Tracker *tracker, int steps) {
     if (tracker->rowOffset > 63) {
         tracker->rowOffset -= 64;
     }
-    screen_setRowOffset(tracker->rowOffset);
 }
 
 void moveDownMany(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
@@ -383,6 +379,7 @@ void resetChannelParams(Synth *synth, Uint8 channel) {
 void stopPlayback(Tracker *tracker) {
     if (player_isPlaying(tracker->player)) {
         player_stop(tracker->player);
+        tracker->rowOffset = player_getCurrentRow(tracker->player);
     }
     if (tracker->mode == STOP) {
         setMode(tracker, EDIT);
@@ -701,7 +698,11 @@ int main(int argc, char* args[]) {
 
         }
         screen_setStepping(tracker->stepping);
-        screen_setRowOffset(player_getCurrentRow(tracker->player));
+        if (player_isPlaying(tracker->player)) {
+            screen_setRowOffset(player_getCurrentRow(tracker->player));
+        } else {
+            screen_setRowOffset(tracker->rowOffset);
+        }
         screen_update();
         SDL_Delay(5);
     }

@@ -8,6 +8,10 @@
 #define PLAYER_MODULATION_AMP_SCALING 3
 #define PLAYER_MODULATION_FREQ_SCALING 16
 
+#define EFFECT_ARPEGGIO 0x0
+#define EFFECT_TONE_PORTAMENTO 0x3
+#define EFFECT_VIBRATO 0x4
+
 typedef struct _Player {
     Synth *synth;
     Song *song;
@@ -17,6 +21,11 @@ typedef struct _Player {
     Uint8 channels;
 } Player;
 
+void _player_parameterToNibbles(Uint8 parameter, Uint8 *left, Uint8 *right) {
+    *left = (parameter >> 4) & 0xF;
+    *right = parameter & 0xF;
+}
+
 Uint32 _player_playCallback(Uint32 interval, void *param) {
     Player *player = (Player*)param;
     Synth *synth = player->synth;
@@ -25,16 +34,23 @@ Uint32 _player_playCallback(Uint32 interval, void *param) {
         Sint8 note = player->song->tracks[channel].notes[player->rowOffset].note;
         Uint8 patch = player->song->tracks[channel].notes[player->rowOffset].patch;
         Uint16 command = player->song->tracks[channel].notes[player->rowOffset].command;
+        Uint8 effect = command >> 8;
+        Uint8 parameter = command & 0xFF;
 
         if (player->playbackTick == 0) {
             if (note == NOTE_OFF) {
                 synth_noteRelease(synth, channel);
             } else if (note >= 0 && note < 97) {
-                synth_noteTrigger(synth, channel, patch, note);
+                if (effect == EFFECT_TONE_PORTAMENTO) {
+                    synth_notePitch(synth, channel, patch, note);
+                } else {
+                    synth_noteTrigger(synth, channel, patch, note);
+                }
             }
-            if ((command & 0xF00) == 0x400) {
-                Uint8 freq = (command >> 4) & 0xF;
-                Uint8 amp = command & 0xF;
+            if (effect == EFFECT_VIBRATO) {
+                Uint8 freq, amp;
+                _player_parameterToNibbles(parameter, &freq, &amp);
+
                 if (freq > 0 || amp > 0) {
                     synth_frequencyModulation(
                             synth, channel,
@@ -47,11 +63,11 @@ Uint32 _player_playCallback(Uint32 interval, void *param) {
             }
         }
         /* Arpeggio */
-        bool isArpeggio = ((command & 0xF00) == 0x000) && command > 0;
+        bool isArpeggio = (effect == EFFECT_ARPEGGIO) && parameter > 0;
         if (isArpeggio && player->playbackTick == 1) {
-            synth_pitchOffset(synth, channel, command & 0xF);
+            synth_pitchOffset(synth, channel, parameter & 0xF);
         } else if (isArpeggio && player->playbackTick == 2) {
-            synth_pitchOffset(synth, channel, command >> 4);
+            synth_pitchOffset(synth, channel, parameter >> 4);
         } else if (isArpeggio && player->playbackTick == 3) {
             synth_pitchOffset(synth, channel, 12);
         } else {
