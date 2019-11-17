@@ -11,7 +11,7 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 
 ## Keys
 - `Left Alt + Z,X,C,V` - Mute channels 1-4
-- `F1/F2` - Decrease/increase octave in editor
+- `F1, F2` - Decrease/increase octave in editor
 - `Shift + F3` - Cut track
 - `Shift + F4` - Copy track
 - `Shift + F5` - Paste track
