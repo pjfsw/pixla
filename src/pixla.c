@@ -6,41 +6,33 @@
 #include "synth.h"
 #include "track.h"
 #include "trackermode.h"
+#include "song.h"
+#include "player.h"
+#include "note.h"
 
 #define CHANNELS 4
 #define DEFAULT_TRACK_LENGTH 64
 #define SUBCOLUMNS 4
-
-#define NOTE_OFF 126
-#define NO_NOTE 127
-#define MAX_TRACKS 256
-
-typedef struct {
-    Track tracks[MAX_TRACKS];
-    int bpm;
-} Song;
 
 typedef struct _Tracker Tracker;
 
 typedef void(*KeyHandler)(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod);
 
 typedef struct _Tracker {
+    Synth *synth;
+    Player *player;
     KeyHandler keyHandler[256];
     Sint8 keyToNote[256];
     Uint8 keyToCommandCode[256];
-    Uint8 modulationAmpTable[16];
     Uint8 stepping;
     Uint8 octave;
     Uint8 patch;
 
-    Synth *synth;
-    SDL_TimerID playbackTimerId;
     Sint8 rowOffset;
     Uint8 currentTrack;
     Song song;
     Trackermode mode;
     Uint8 currentColumn;
-    Uint8 playbackTick;
 } Tracker;
 
 Tracker *tracker;
@@ -50,7 +42,7 @@ void clearSong(Song *song) {
     for (int track = 0; track < MAX_TRACKS; track++) {
         song->tracks[track].length = DEFAULT_TRACK_LENGTH;;
         for (int row = 0; row < MAX_TRACK_LENGTH; row++) {
-            song->tracks[track].notes[row].note = NO_NOTE;
+            song->tracks[track].notes[row].note = NOTE_NONE;
             song->tracks[track].notes[row].patch = 0;
         }
     }
@@ -204,7 +196,7 @@ void skipRow(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
 
 void deleteNote(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     if (isEditMode(tracker)) {
-        getCurrentNote(tracker)->note = NO_NOTE;
+        getCurrentNote(tracker)->note = NOTE_NONE;
         getCurrentNote(tracker)->patch = 0;
         moveDownSteps(tracker, tracker->stepping);
     }
@@ -353,7 +345,7 @@ bool saveSongWithName(Tracker *tracker, char* name) {
         for (int row = 0; row < tracker->song.tracks[track].length; row++) {
             Note note = tracker->song.tracks[track].notes[row];
             Uint16  encodedNote = (track << 8) + row;
-            if (note.note != NO_NOTE) {
+            if (note.note != NOTE_NONE) {
                 fprintf(f, "note %04x %02x\n", encodedNote, note.note);
                 fprintf(f, "patch %04x %02x\n", encodedNote, note.patch);
             }
@@ -389,9 +381,8 @@ void resetChannelParams(Synth *synth, Uint8 channel) {
 }
 
 void stopPlayback(Tracker *tracker) {
-    if (tracker->playbackTimerId != 0) {
-        SDL_RemoveTimer(tracker->playbackTimerId);
-        tracker->playbackTimerId = 0;
+    if (player_isPlaying(tracker->player)) {
+        player_stop(tracker->player);
     }
     if (tracker->mode == STOP) {
         setMode(tracker, EDIT);
@@ -412,60 +403,10 @@ void stopSong(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     stopPlayback(tracker);
 }
 
-Uint32 getDelayFromBpm(int bpm) {
-    return 15000/bpm;
-}
-
-Uint32 playCallback(Uint32 interval, void *param) {
-    Tracker *tracker = (Tracker*)param;
-
-    for (int channel = 0; channel < CHANNELS; channel++) {
-        Sint8 note = tracker->song.tracks[channel].notes[tracker->rowOffset].note;
-        Uint8 patch = tracker->song.tracks[channel].notes[tracker->rowOffset].patch;
-        Uint16 command = tracker->song.tracks[channel].notes[tracker->rowOffset].command;
-
-        if (tracker->playbackTick == 0) {
-            if (note == NOTE_OFF) {
-                synth_noteRelease(tracker->synth, channel);
-            } else if (note >= 0 && note < 97) {
-                playNote(tracker->synth, channel, patch, note);
-            }
-            if ((command & 0xF00) == 0x400) {
-                Uint8 freq = (command >> 4) & 0xF;
-                Uint8 amp = command & 0xF;
-                if (freq > 0 || amp > 0) {
-                    synth_frequencyModulation(tracker->synth, channel, freq * 16, tracker->modulationAmpTable[amp]);
-                }
-            } else {
-                synth_frequencyModulation(tracker->synth, channel, 0, 0);
-            }
-        }
-        /* Arpeggio */
-        bool isArpeggio = ((command & 0xF00) == 0x000) && command > 0;
-        if (isArpeggio && tracker->playbackTick == 1) {
-            synth_pitchOffset(tracker->synth, channel, command & 0xF);
-        } else if (isArpeggio && tracker->playbackTick == 2) {
-            synth_pitchOffset(tracker->synth, channel, command >> 4);
-        } else if (isArpeggio && tracker->playbackTick == 3) {
-            synth_pitchOffset(tracker->synth, channel, 12);
-        } else {
-            synth_pitchOffset(tracker->synth, channel ,0);
-        }
-    }
-    if (tracker->playbackTick == 0) {
-        screen_setRowOffset(tracker->rowOffset);
-        tracker->rowOffset = (tracker->rowOffset + 1) % 64;
-    }
-    tracker->playbackTick = (tracker->playbackTick + 1) % 4;
-    return interval;
-}
-
-
 void playPattern(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     stopPlayback(tracker);
     moveToFirstRow(tracker);
-    tracker->playbackTick = 0;
-    tracker->playbackTimerId = SDL_AddTimer(getDelayFromBpm(tracker->song.bpm)/4, playCallback, tracker);
+    player_start(tracker->player, &tracker->song);
     setMode(tracker, PLAY);
 };
 
@@ -567,14 +508,12 @@ void initKeyHandler() {
     tracker->keyHandler[SDL_SCANCODE_SPACE] = stopSong;
 }
 
-void initModulationAmpTable(Tracker *tracker) {
-    for (int i = 0; i < 16; i++) {
-        tracker->modulationAmpTable[i] = i*3;
-    }
-}
-
 void tracker_close(Tracker *tracker) {
     if (NULL != tracker) {
+        if (tracker->player != NULL) {
+            player_close(tracker->player);
+            tracker->player = NULL;
+        }
         if (tracker->synth != NULL) {
             synth_close(tracker->synth);
             tracker->synth = NULL;
@@ -591,6 +530,10 @@ Tracker *tracker_init() {
     tracker->patch = 1;
 
     if (NULL == (tracker->synth = synth_init(CHANNELS))) {
+        tracker_close(tracker);
+        return NULL;
+    }
+    if (NULL == (tracker->player = player_init(tracker->synth, CHANNELS))) {
         tracker_close(tracker);
         return NULL;
     }
@@ -614,7 +557,6 @@ int main(int argc, char* args[]) {
     initKeyHandler();
     initNotes();
     initCommandKeys();
-    initModulationAmpTable(tracker);
 
     loadSongWithName(tracker, "song.pxm");
 
@@ -759,6 +701,7 @@ int main(int argc, char* args[]) {
 
         }
         screen_setStepping(tracker->stepping);
+        screen_setRowOffset(player_getCurrentRow(tracker->player));
         screen_update();
         SDL_Delay(5);
     }
