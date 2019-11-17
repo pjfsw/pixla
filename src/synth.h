@@ -3,33 +3,11 @@
 
 #include <stdbool.h>
 #include <SDL2/SDL.h>
+#include "instrument.h"
 
 #define MAX_INSTRUMENTS 256
 
 typedef struct _Synth Synth;
-
-typedef enum {
-    LOWPASS_SAW,
-    LOWPASS_PULSE,
-    NOISE,
-    PWM
-} Waveform;
-
-typedef struct {
-    Waveform waveform;
-    Sint8 note;
-    Uint16 length;
-    Uint8 pwm;
-    Uint8 dutyCycle;
-} Wavesegment;
-
-typedef struct {
-    Sint8 attack;
-    Sint8 decay;
-    Sint8 sustain;
-    Sint8 release;
-    Wavesegment waves[3];
-} Instrument;
 
 Synth *synth_init(Uint8 channels);
 

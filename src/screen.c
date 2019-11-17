@@ -10,6 +10,8 @@
 #define SCREEN_HEIGHT 300
 #define SCREEN_SCALING 2
 #define STATUS_ROW 130
+#define INSTRUMENT_X 280
+#define INSTRUMENT_Y 40
 
 typedef struct {
     Uint8 x;
@@ -31,9 +33,7 @@ typedef struct {
     TTF_Font *font;
     int logo_w;
     int logo_h;
-    Sint8 *tableToShow;
-    Sint16 tableToShowCount;
-
+    Instrument *instrument;
     Track **tracks;
     char rowNumbers[256][4];
     char* statusMsg;
@@ -287,8 +287,9 @@ int getColumnOffset(int column) {
 }
 
 
-void screen_selectPatch(Uint8 patch) {
+void screen_selectPatch(Uint8 patch, Instrument *instrument) {
    screen->selectedPatch = patch;
+   screen->instrument = instrument;
 }
 
 void screen_setStepping(Uint8 stepping) {
@@ -311,14 +312,6 @@ void screen_setTrackermode(Trackermode trackermode) {
 void screen_setChannelMute(Uint8 track, bool mute) {
     screen->mute[track] = mute;
 }
-
-
-void screen_setTableToShow(Sint8 *table, Uint8 elements) {
-    screen->tableToShow = table;
-    screen->tableToShowCount = elements;
-
-}
-
 
 void _screen_renderLogo() {
     SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_ADD);
@@ -343,6 +336,9 @@ void _screen_setDisabledCursorColor() {
 
 void _screen_setEnabledCursorColor() {
     SDL_SetRenderDrawColor(screen->renderer, 255,255,255,100);
+}
+
+void _screen_renderSong() {
 }
 
 
@@ -424,22 +420,20 @@ void _screen_renderColumns() {
     _screen_setEditColor();
     SDL_RenderFillRect(screen->renderer, &pos);
 
-    if (screen->trackermode != PLAY) {
-        if (screen->trackermode == EDIT) {
-            _screen_setEnabledCursorColor();
-        } else {
-            _screen_setDisabledCursorColor();
-        }
-        SDL_Rect pos2 = {
-                .x=getColumnOffset(screen->selectedTrack)+screen->columnHighlight[screen->selectedColumn].x-2,
-                .y=getTrackRowY(editOffset)-2,
-                .w=screen->columnHighlight[screen->selectedColumn].w+3,
-                .h=12
-        };
-
-        SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
-        SDL_RenderDrawRect(screen->renderer, &pos2);
+    if (screen->trackermode == EDIT) {
+        _screen_setEnabledCursorColor();
+    } else {
+        _screen_setDisabledCursorColor();
     }
+    SDL_Rect pos2 = {
+            .x=getColumnOffset(screen->selectedTrack)+screen->columnHighlight[screen->selectedColumn].x-2,
+            .y=getTrackRowY(editOffset)-2,
+            .w=screen->columnHighlight[screen->selectedColumn].w+3,
+            .h=12
+    };
+
+    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
+    SDL_RenderDrawRect(screen->renderer, &pos2);
 }
 
 
@@ -450,6 +444,7 @@ void _screen_renderDivisions() {
 }
 
 void _screen_renderStatusOctave() {
+    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_ADD);
     for (int i = 0; i < 7; i++) {
         SDL_Rect pos = {
                 .x=8+i*56,
@@ -486,15 +481,77 @@ void _screen_renderIsEditMode() {
 }
 
 void _screen_renderStepping() {
+    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_ADD);
+
     char s[3];
     sprintf(s, "%d", screen->stepping);
     screen_print(0, STATUS_ROW, s, &statusColor);
 }
 
+char *_screen_waveFormName(Waveform waveform) {
+    switch (waveform) {
+    case PWM:
+        return "PWM";
+    case LOWPASS_PULSE:
+        return "Pulse";
+    case LOWPASS_SAW:
+        return "Saw";
+    case NOISE:
+        return "Noise";
+    }
+    return "";
+}
+
 void _screen_renderSelectedPatch() {
-    char s[3];
-    sprintf(s, "%02x", screen->selectedPatch);
-    screen_print(0, STATUS_ROW-8, s, &statusColor);
+    char s[20];
+
+    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
+
+    sprintf(s, "Patch: %02x", screen->selectedPatch);
+    screen_print(INSTRUMENT_X, INSTRUMENT_Y, s, &statusColor);
+
+    if (screen->instrument != NULL) {
+        Instrument *instrument = screen->instrument;
+        int adsrScaleX = 8;
+        int adsrScaleY = 30;
+        int adsrOffset = 10;
+
+        /* Attack */
+        int attackX = INSTRUMENT_X + instrument->attack/adsrScaleX;
+        SDL_RenderDrawLine(screen->renderer,
+                INSTRUMENT_X, INSTRUMENT_Y + adsrScaleY + adsrOffset - 1,
+                attackX, INSTRUMENT_Y+adsrOffset);
+        /* Decay */
+        int decayX = attackX + instrument->decay/adsrScaleX;
+        int sustainY = INSTRUMENT_Y + adsrScaleY +  adsrOffset - instrument->sustain/adsrScaleX - 1;
+        SDL_RenderDrawLine(screen->renderer,
+                attackX, INSTRUMENT_Y + adsrOffset,
+                decayX, sustainY);
+
+        /* Sustain */
+        int graphEnd = 319;
+        int sustainX = graphEnd - instrument->release/adsrScaleX;
+        if (sustainX < decayX) {
+            sustainX = decayX;
+        }
+        SDL_RenderDrawLine(screen->renderer,
+                decayX, sustainY,
+                sustainX, sustainY);
+        /* Release */
+        SDL_RenderDrawLine(screen->renderer,
+                sustainX, sustainY,
+                graphEnd, INSTRUMENT_Y + adsrScaleY - 1 + adsrOffset);
+
+        for (int i = 0; i < 3; i++) {
+            Wavesegment *wav = &instrument->waves[i];
+            sprintf(s, "%d: %s", i+1, _screen_waveFormName(wav->waveform));
+            screen_print(graphEnd + 8, INSTRUMENT_Y + adsrOffset + i * 10, s, &statusColor);
+            if (wav->length == 0) {
+                break;
+            }
+        }
+
+    }
 }
 
 void _screen_renderStatusMessage() {
@@ -504,7 +561,6 @@ void _screen_renderStatusMessage() {
 }
 
 void _screen_renderStatus() {
-    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_ADD);
     _screen_renderStepping();
     _screen_renderSelectedPatch();
     _screen_renderStatusMessage();
@@ -516,6 +572,7 @@ void screen_update() {
     SDL_RenderClear(screen->renderer);
     _screen_renderDivisions();
     _screen_renderLogo();
+    _screen_renderSong();
     _screen_renderColumns();
     _screen_renderStatus();
 /*    _screen_renderGraphs();*/

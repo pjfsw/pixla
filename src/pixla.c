@@ -9,6 +9,7 @@
 #include "song.h"
 #include "player.h"
 #include "note.h"
+#include "instrument.h"
 
 #define CHANNELS 4
 #define DEFAULT_TRACK_LENGTH 64
@@ -260,7 +261,6 @@ void previousPatch(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     } else {
         tracker->patch--;
     }
-    screen_selectPatch(tracker->patch);
 }
 
 void nextPatch(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -269,7 +269,6 @@ void nextPatch(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     } else {
         tracker->patch++;
     }
-    screen_selectPatch(tracker->patch);
 }
 
 
@@ -751,6 +750,14 @@ int main(int argc, char* args[]) {
     };
 
 
+    memcpy(&tracker->song.instruments[1], &instr1, sizeof(Instrument));
+    memcpy(&tracker->song.instruments[2], &instr2, sizeof(Instrument));
+    memcpy(&tracker->song.instruments[3], &instr3, sizeof(Instrument));
+    memcpy(&tracker->song.instruments[4], &instr4, sizeof(Instrument));
+    memcpy(&tracker->song.instruments[5], &instr5, sizeof(Instrument));
+    memcpy(&tracker->song.instruments[6], &instr6, sizeof(Instrument));
+    memcpy(&tracker->song.instruments[7], &instr7, sizeof(Instrument));
+    memcpy(&tracker->song.instruments[8], &instr8, sizeof(Instrument));
 
     synth_loadPatch(tracker->synth, 1, &instr1);
     synth_loadPatch(tracker->synth, 2, &instr2);
@@ -800,6 +807,7 @@ int main(int argc, char* args[]) {
         } else {
             screen_setRowOffset(tracker->rowOffset);
         }
+        screen_selectPatch(tracker->patch, &tracker->song.instruments[tracker->patch]);
         screen_update();
         SDL_Delay(5);
     }

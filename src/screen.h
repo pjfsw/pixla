@@ -6,6 +6,7 @@
 
 #include "track.h"
 #include "trackermode.h"
+#include "instrument.h"
 
 /*
  * Initialize screen
@@ -39,7 +40,7 @@ void screen_setStepping(Uint8 stepping);
 
 void screen_setOctave(Uint8 octave);
 
-void screen_selectPatch(Uint8 patch);
+void screen_selectPatch(Uint8 patch, Instrument *instrument);
 
 void screen_setRowOffset(Sint8 rowOffset);
 
