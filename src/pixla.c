@@ -433,7 +433,11 @@ Uint32 playCallback(Uint32 interval, void *param) {
             if ((command & 0xF00) == 0x400) {
                 Uint8 freq = (command >> 4) & 0xF;
                 Uint8 amp = command & 0xF;
-                synth_frequencyModulation(tracker->synth, channel, freq * 16, tracker->modulationAmpTable[amp]);
+                if (freq > 0 || amp > 0) {
+                    synth_frequencyModulation(tracker->synth, channel, freq * 16, tracker->modulationAmpTable[amp]);
+                }
+            } else {
+                synth_frequencyModulation(tracker->synth, channel, 0, 0);
             }
         }
         /* Arpeggio */
