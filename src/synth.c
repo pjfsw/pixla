@@ -52,6 +52,7 @@ typedef struct {
     Uint8 currentSegment;
     Swipe swipe;
     Modulation frequencyModulation;
+    Sint8 noteModulation;
 } WaveData;
 
 
@@ -239,6 +240,7 @@ void _synth_updateWaveform(Synth *synth, Uint8 channel) {
     if (waveData->dutyCycle > 0) {
         ch->waveData.dutyCycle = waveData->dutyCycle << 8;
     }
+    ch->waveData.noteModulation = waveData->note;
 
 
     switch (waveform) {
@@ -324,8 +326,16 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
             WaveData *wav = &ch->waveData;
             AmpData *amp = &ch->ampData;
 
+            Sint8 note = ch->note+ch->noteOffset;
+            if (wav->noteModulation < 0) {
+                note -= wav->noteModulation;
+            } else if (wav->noteModulation > 0) {
+                note = wav->noteModulation;
+            }
+
+
             voiceFreq = _synth_getSwipedFrequency(
-                    frequencyTable[((ch->note+ch->noteOffset)) % (sizeof(frequencyTable)/sizeof(Uint16))],
+                    frequencyTable[note % (sizeof(frequencyTable)/sizeof(Uint16))],
                     ch->playtime / SAMPLE_RATE_MS,
                     &wav->swipe);
 

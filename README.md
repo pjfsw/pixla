@@ -16,3 +16,16 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - `Right Ctrl` - Play Pattern
 - `F9/F10` - Select instrument
 
+## Instruments/Patches
+- Attack/Decay/Sustain/Release configurable per patch
+- Up to three wave segments per patch
+- Each wave segment has the following properties
+  - A waveform (Lowpass Pulse, Lowpass Saw, Pulse with PWM, White Noise)
+  - A length in some time uint, or 0 to indicate this is the last segment
+  - A starting duty cycle (for PWM)
+  - Pulse width modulation speed
+  - A note modifier keyword:
+    - 00 no change
+    - <00 subtract this from current note value, effectively adding the absolute value to the played note
+    - >00 play the specified note regardless of the note in the tracker
+
