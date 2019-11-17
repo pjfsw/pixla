@@ -5,8 +5,8 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 ## Command column description
 
 - `0xy` - Arpeggio, 4x speed playing note, note + x, note + y, note + 12
-- `1xy` - Slide up (not yet implemented)
-- `2xy` - Slide down (not yet implemented)
+- `1xy` - Slide up, max 4 octaves up from note value then sliding stops
+- `2xy` - Slide down, max 4 octaves down from note value then sliding stops
 - `4xy` - Vibrato, x = speed, y = depth
 
 ## Keys

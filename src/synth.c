@@ -27,6 +27,22 @@ typedef Sint8 (*GenerateWaveformFunc)(Uint8 offset);
 typedef Sint8 (*GetSampleFunc)(Channel *channel);
 
 
+#define SWIPE_OFFSET_SCALE 480000
+#define SWIPE_LIMIT 4
+
+typedef struct {
+    Sint32 offset; // Offset in 1/100 halfnotes
+    Uint8 speed;
+    Sint8 direction;
+} Swipe;
+
+typedef struct {
+    Uint8 frequency;
+    Uint8 amplitude;
+} Modulation;
+
+#define FREQ_SWIPE_NOTE_SCALER 32
+
 typedef struct {
     Uint16 wavePos;
     Sint8 *wave;
@@ -34,6 +50,7 @@ typedef struct {
     Uint16 dutyCycle;
     Sint8 pwm;
     Uint8 currentSegment;
+    Swipe swipe;
     Modulation frequencyModulation;
 } WaveData;
 
@@ -242,6 +259,37 @@ void _synth_updateWaveform(Synth *synth, Uint8 channel) {
     }
 }
 
+Uint16 _synth_getSwipedFrequency(
+        Uint16 frequency,
+        Uint32 millis,
+        Swipe *swipe
+) {
+    if (swipe->direction > 0) {
+        swipe->offset+=swipe->speed;
+        if (swipe->offset > SWIPE_OFFSET_SCALE * SWIPE_LIMIT) {
+            swipe->offset = SWIPE_OFFSET_SCALE * SWIPE_LIMIT;
+        }
+    }
+    if (swipe->direction < 0) {
+        swipe->offset-=swipe->speed;
+        if (swipe->offset < -SWIPE_OFFSET_SCALE * SWIPE_LIMIT) {
+            swipe->offset = -SWIPE_OFFSET_SCALE * SWIPE_LIMIT;
+        }
+    }
+    if (swipe->offset == 0) {
+        return frequency;
+    }
+
+    Uint16 resultFreq = frequency * pow(2, (double)swipe->offset/(double)SWIPE_OFFSET_SCALE);
+    if (resultFreq > frequencyTable[FREQUENCY_TABLE_LENGTH-1]) {
+        resultFreq = frequencyTable[FREQUENCY_TABLE_LENGTH-1];
+    } else if (resultFreq < frequencyTable[0]) {
+        resultFreq = frequencyTable[0];
+    }
+    return resultFreq;
+
+}
+
 Uint16 _synth_getModulatedFrequency(
         Synth *synth,
         Uint16 frequency,
@@ -255,7 +303,6 @@ Uint16 _synth_getModulatedFrequency(
     }
     Sint16 modulationIndex =  synth->sineTable[(playtime * frequencyModulation->frequency / MODULATION_SCALER) & 0xFFFF];
     Sint16 scaledModulationIndex = frequencyModulation->amplitude * modulationIndex / 255;
-//    Sint16 scaledModulationIndex = synth->sineTable[(synth->clock) & 0xFFFF];
 
     return frequency * synth->halfToDoubleModulationTable[scaledModulationIndex+32768] / 16384;
 }
@@ -277,16 +324,23 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
             WaveData *wav = &ch->waveData;
             AmpData *amp = &ch->ampData;
 
+            voiceFreq = _synth_getSwipedFrequency(
+                    frequencyTable[((ch->note+ch->noteOffset)) % (sizeof(frequencyTable)/sizeof(Uint16))],
+                    ch->playtime / SAMPLE_RATE_MS,
+                    &wav->swipe);
+
             voiceFreq = _synth_getModulatedFrequency(
                     synth,
-                    frequencyTable[((ch->note+ch->noteOffset)) % (sizeof(frequencyTable)/sizeof(Uint16))],
+                    voiceFreq,
                     ch->playtime,
                     &wav->frequencyModulation
                     );
 
+
             if (0 == i % ADSR_PWM_PRESCALER) {
                 _synth_updateWaveform(synth, j);
                 _synth_updateAdsr(synth, ch);
+
                 if (ch->waveData.pwm > 0) {
                     ch->waveData.dutyCycle+=ch->waveData.pwm;
                 }
@@ -436,17 +490,30 @@ void _synth_updateAmpData(AmpData *amp) {
     amp->adsrTimer = 0;
 }
 
-
 void synth_pitchOffset(Synth *synth, Uint8 channel, Sint8 offset) {
+    if (synth == NULL || channel >= synth->channels) {
+        return;
+    }
     synth->channelData[channel].noteOffset = offset;
 }
 
-
 void synth_notePitch(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note) {
-    synth->channelData[channel].note = note;
+    if (synth == NULL || channel >= synth->channels) {
+        return;
+    }
+
+    Channel *ch = &synth->channelData[channel];
+    ch->note = note;
+    ch->waveData.swipe.speed = 0;
+    ch->waveData.swipe.direction = 0;
+    ch->waveData.swipe.offset = 0;
+
 }
 
 void synth_noteTrigger(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note) {
+    if (synth == NULL || channel >= synth->channels) {
+        return;
+    }
     Channel *ch = &synth->channelData[channel];
     ch->ampData.adsr = OFF;
     ch->playtime = 0;
@@ -483,6 +550,38 @@ void synth_frequencyModulation(Synth *synth, Uint8 channel, Uint8 frequency, Uin
     synth->channelData[channel].waveData.frequencyModulation.amplitude = amplitude;
 }
 
+void synth_pitchGlideUp(Synth *synth, Uint8 channel, Uint8 speed) {
+    if (synth == NULL || channel >= synth->channels) {
+        return;
+    }
+    synth->channelData[channel].waveData.swipe.speed = speed;
+    synth->channelData[channel].waveData.swipe.direction = 1;
+}
+
+void synth_pitchGlideDown(Synth *synth, Uint8 channel, Uint8 speed) {
+    if (synth == NULL || channel >= synth->channels) {
+        return;
+    }
+    synth->channelData[channel].waveData.swipe.speed = speed;
+    synth->channelData[channel].waveData.swipe.direction = -1;
+}
+
+void synth_pitchGlideStop(Synth *synth, Uint8 channel) {
+    if (synth == NULL || channel >= synth->channels) {
+        return;
+    }
+    synth->channelData[channel].waveData.swipe.speed = 0;
+    synth->channelData[channel].waveData.swipe.direction = 0;
+}
+
+void synth_pitchGlideReset(Synth *synth, Uint8 channel) {
+    if (synth == NULL || channel >= synth->channels) {
+        return;
+    }
+    synth->channelData[channel].waveData.swipe.speed = 0;
+    synth->channelData[channel].waveData.swipe.direction = 0;
+    synth->channelData[channel].waveData.swipe.offset = 0;
+}
 
 bool synth_isChannelMuted(Synth *synth, Uint8 channel) {
     if (synth == NULL || channel >= synth->channels) {

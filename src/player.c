@@ -9,6 +9,8 @@
 #define PLAYER_MODULATION_FREQ_SCALING 16
 
 #define EFFECT_ARPEGGIO 0x0
+#define EFFECT_SLIDE_UP 0x1
+#define EFFECT_SLIDE_DOWN 0x2
 #define EFFECT_TONE_PORTAMENTO 0x3
 #define EFFECT_VIBRATO 0x4
 
@@ -60,6 +62,17 @@ Uint32 _player_playCallback(Uint32 interval, void *param) {
                 }
             } else {
                 synth_frequencyModulation(synth, channel, 0, 0);
+            }
+            if (effect == EFFECT_SLIDE_DOWN) {
+                if (parameter != 0) {
+                    synth_pitchGlideDown(synth, channel, parameter);
+                }
+            } else if (effect == EFFECT_SLIDE_UP) {
+                if (parameter != 0) {
+                    synth_pitchGlideUp(synth, channel, parameter);
+                }
+            } else {
+                synth_pitchGlideStop(synth, channel);
             }
         }
         /* Arpeggio */

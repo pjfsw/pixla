@@ -359,7 +359,6 @@ void saveSong(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
         screen_setStatusMessage("Successfully saved song.pxm");
     } else {
         screen_setStatusMessage("Could not save song.pxm");
-
     }
 }
 
@@ -371,6 +370,10 @@ void resetChannelParams(Synth *synth, Uint8 channel) {
 void stopPlayback(Tracker *tracker) {
     if (player_isPlaying(tracker->player)) {
         player_stop(tracker->player);
+        for (int i = 0; i < CHANNELS; i++) {
+            synth_pitchGlideReset(tracker->synth, i);
+        }
+
         tracker->rowOffset = player_getCurrentRow(tracker->player);
     }
     if (tracker->mode == STOP) {

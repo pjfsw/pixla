@@ -31,11 +31,6 @@ typedef struct {
     Wavesegment waves[3];
 } Instrument;
 
-typedef struct {
-    Uint8 frequency;
-    Uint8 amplitude;
-} Modulation;
-
 Synth *synth_init(Uint8 channels);
 
 /**
@@ -54,11 +49,27 @@ void synth_setPwm(Synth* synth, Uint8 channel, Sint8 dutyCycle, Sint8 pwm);
 
 void synth_notePitch(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note);
 
+/** Convenience function to relatively alter pitch */
 void synth_pitchOffset(Synth *synth, Uint8 channel, Sint8 offset);
 
 void synth_noteOff(Synth *synth, Uint8 channel);
 
 void synth_frequencyModulation(Synth *synth, Uint8 channel, Uint8 frequency, Uint8 amplitude);
+
+/**
+ * Start frequency gliding. Stop gliding by setting speed to 0 or call pitchGlideStop. Offset is reset with notePitch or noteTrigger
+ */
+void synth_pitchGlideUp(Synth *synth, Uint8 channel, Uint8 speed);
+
+/**
+ * Start frequency gliding. Stop gliding by setting speed to 0 or call pitchGlideStop. Offset is reset with notePitch or noteTrigger
+ */
+void synth_pitchGlideDown(Synth *synth, Uint8 channel, Uint8 speed);
+
+/** Stop frequency gliding */
+void synth_pitchGlideStop(Synth *synth, Uint8 channel);
+
+void synth_pitchGlideReset(Synth *synth, Uint8 channel);
 
 void synth_muteChannel(Synth *synth, Uint8 channel, bool mute);
 

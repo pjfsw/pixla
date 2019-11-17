@@ -1,7 +1,8 @@
 #ifndef FREQUENCY_TABLE_H_
 #define FREQUENCY_TABLE_H_
 
-Uint16 frequencyTable[96] = {
+#define FREQUENCY_TABLE_LENGTH 96
+Uint16 frequencyTable[FREQUENCY_TABLE_LENGTH] = {
          /* C0 -B0 */
          33,
          35,
@@ -111,6 +112,7 @@ Uint16 frequencyTable[96] = {
         7459,
         7902
 };
+
 
 
 
