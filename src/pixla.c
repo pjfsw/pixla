@@ -11,6 +11,18 @@
 #include "note.h"
 #include "instrument.h"
 
+/*
+https://milkytracker.titandemo.org/docs/FT2.pdf
+https://github.com/leafo/goattracker2/blob/master/morphos/goattracker.guide
+https://pages.mtu.edu/~suits/NoteFreqCalcs.html
+https://github.com/cmatsuoka/tracker-history/blob/master/reference/amiga/noisetracker/NoiseTracker.doc
+https://en.wikipedia.org/wiki/WAV
+https://www.desmos.com/calculator
+http://coppershade.org/articles/More!/Topics/Protracker_Effect_Commands/
+http://coppershade.org/helpers/DOCS/protracker23.readme.txt
+
+*/
+
 #define CHANNELS 4
 #define DEFAULT_TRACK_LENGTH 64
 #define SUBCOLUMNS 4
