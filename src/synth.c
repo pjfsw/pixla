@@ -311,15 +311,15 @@ Uint16 _synth_getModulatedFrequency(
 
 void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
     Synth *synth = (Synth*)userdata;
-    Sint8 *buffer = (Sint8*)stream;
+    Sint16 *buffer = (Sint16*)stream;
 
-    Sint8 scaler = 96/synth->channels;
+    Sint16 scaler = 30000/synth->channels;
 
     Uint16 voiceFreq = 0;
 
 
-    for (int i = 0; i < len; i++) {
-        Sint16 output = 0;
+    for (int i = 0; i < len/2; i++) {
+        Sint32 output = 0;
 
         for (int j = 0; j < synth->channels; j++) {
             Channel *ch = &synth->channelData[j];
@@ -358,7 +358,9 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
 
 
             if (!ch->mute && amp->adsr != OFF) {
-                Sint16 sample = wav->sampleFunc(ch) * amp->amplitude/32768;
+                /** Sample func 0-127 */
+                /** Amplitude 0-32767 */
+                Sint32 sample = wav->sampleFunc(ch) * amp->amplitude/128;
                 output += sample;
             }
 
@@ -366,7 +368,7 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
             ch->playtime++;
 
         }
-        buffer[i] = output * scaler / 128;
+        buffer[i] = output * scaler / 32768;
         synth->clock++;
     }
 }
@@ -445,7 +447,7 @@ Synth* synth_init(Uint8 channels) {
 
     SDL_memset(&want, 0, sizeof(want));
     want.freq = synth->sampleFreq; // Playback frequency on Sound card. Each sample takes worth 1/24000 second
-    want.format = AUDIO_S8; // 8-bit unsigned samples
+    want.format = AUDIO_S16SYS; // 8-bit unsigned samples
     want.channels = 1; // Only play mono for simplicity = 1 byte = 1 sample
     want.samples = 256; // Buffer size.
     want.callback = _synth_processBuffer; // Called whenever the sound card needs more data
