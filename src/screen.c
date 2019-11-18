@@ -258,21 +258,11 @@ void screen_setSelectedTrack(Uint8 track) {
     screen->selectedTrack = track;
 }
 
-Uint8 screen_getLongestTrackLength() {
-    Uint8 length = 0;
-    for (int i = 0; i < screen->numberOfTracks; i++) {
-        if (screen->tracks[i] != NULL && screen->tracks[i]->length > length) {
-            length = screen->tracks[i]->length;
-        }
-    }
-    return length;
-}
-
 void screen_setRowOffset(Sint8 rowOffset) {
     if (rowOffset < 0) {
         screen->rowOffset = 0;
-    } else if (rowOffset > screen_getLongestTrackLength()-1) {
-        screen->rowOffset = screen_getLongestTrackLength()-1;
+    } else if (rowOffset > TRACK_LENGTH-1) {
+        screen->rowOffset = TRACK_LENGTH-1;
     } else {
         screen->rowOffset = rowOffset;
     }
@@ -346,13 +336,12 @@ void _screen_renderColumns() {
     char strbuf[5];
 
     int editOffset = 8;
-    Uint8 maxLength = screen_getLongestTrackLength();
 
     SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
 
     for (int y = 0; y < 16; y++) {
         int offset = y + screen->rowOffset - editOffset;
-        if (offset > maxLength-1) {
+        if (offset > TRACK_LENGTH-1) {
             break;
         }
 
@@ -365,7 +354,7 @@ void _screen_renderColumns() {
 
             for (int x = 0; x < screen->numberOfTracks; x++) {
                 Track *track = screen->tracks[x];
-                if (NULL == track || offset >= track->length) {
+                if (NULL == track || offset >= TRACK_LENGTH) {
                     continue;
                 }
                 Note note = track->notes[offset];

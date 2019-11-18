@@ -1,7 +1,7 @@
 #ifndef TRACK_H_
 #define TRACK_H_
 
-#define MAX_TRACK_LENGTH 256
+#define TRACK_LENGTH 64
 
 typedef struct {
     Sint8 note;
@@ -10,8 +10,7 @@ typedef struct {
 } Note;
 
 typedef struct {
-    Note notes[MAX_TRACK_LENGTH];
-    Uint8 length;
+    Note notes[TRACK_LENGTH];
 } Track;
 
 

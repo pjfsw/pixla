@@ -33,9 +33,9 @@ Uint32 _player_playCallback(Uint32 interval, void *param) {
     Synth *synth = player->synth;
 
     for (int channel = 0; channel < player->channels; channel++) {
-        Sint8 note = player->song->tracks[channel].notes[player->rowOffset].note;
-        Uint8 patch = player->song->tracks[channel].notes[player->rowOffset].patch;
-        Uint16 command = player->song->tracks[channel].notes[player->rowOffset].command;
+        Sint8 note = player->song->patterns[0].tracks[channel].notes[player->rowOffset].note;
+        Uint8 patch = player->song->patterns[0].tracks[channel].notes[player->rowOffset].patch;
+        Uint16 command = player->song->patterns[0].tracks[channel].notes[player->rowOffset].command;
         Uint8 effect = command >> 8;
         Uint8 parameter = command & 0xFF;
 

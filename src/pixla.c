@@ -5,8 +5,9 @@
 #include "screen.h"
 #include "synth.h"
 #include "track.h"
-#include "trackermode.h"
+#include "pattern.h"
 #include "song.h"
+#include "trackermode.h"
 #include "player.h"
 #include "note.h"
 #include "instrument.h"
@@ -23,7 +24,7 @@ http://coppershade.org/helpers/DOCS/protracker23.readme.txt
 
 */
 
-#define CHANNELS 4
+#define CHANNELS TRACKS_PER_PATTERN
 #define DEFAULT_TRACK_LENGTH 64
 #define SUBCOLUMNS 4
 
@@ -44,6 +45,7 @@ typedef struct _Tracker {
 
     Sint8 rowOffset;
     Uint8 currentTrack;
+    Uint16 currentPattern;
     Song song;
     Trackermode mode;
     Uint8 currentColumn;
@@ -55,17 +57,22 @@ Tracker *tracker;
 
 
 void clearTrack(Track *track) {
-    track->length = DEFAULT_TRACK_LENGTH;;
-    for (int row = 0; row < MAX_TRACK_LENGTH; row++) {
+    for (int row = 0; row < TRACK_LENGTH; row++) {
         track->notes[row].note = NOTE_NONE;
         track->notes[row].patch = 0;
         track->notes[row].command = 0;
     }
 }
 
+void clearPattern(Pattern *pattern) {
+    for (int track = 0; track < TRACKS_PER_PATTERN; track++) {
+        clearTrack(&pattern->tracks[track]);
+    }
+}
+
 void clearSong(Song *song) {
-    for (int track = 0; track < MAX_TRACKS; track++) {
-        clearTrack(&song->tracks[track]);
+    for (int pattern = 0; pattern < MAX_PATTERNS; pattern++) {
+        clearPattern(&song->patterns[pattern]);
     }
 }
 
@@ -138,10 +145,17 @@ void playNote(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note) {
     synth_noteTrigger(synth, channel, patch, note);
 }
 
-Note *getCurrentNote(Tracker *tracker) {
-    return &tracker->song.tracks[tracker->currentTrack].notes[tracker->rowOffset];
+Pattern *getCurrentPattern(Tracker *tracker) {
+    return &tracker->song.patterns[tracker->currentPattern];
 }
 
+Track *getCurrentTrack(Tracker *tracker) {
+    return &getCurrentPattern(tracker)->tracks[tracker->currentTrack];
+}
+
+Note *getCurrentNote(Tracker *tracker) {
+    return &getCurrentTrack(tracker)->notes[tracker->rowOffset];
+}
 
 void editCommand(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
     if (!isEditMode(tracker) || tracker->currentColumn < 1) {
@@ -150,7 +164,7 @@ void editCommand(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
     int nibblePos = (3-tracker->currentColumn) * 4;
     Uint16 mask = 0XFFF - (0xF << nibblePos);
 
-    Note *note = &tracker->song.tracks[tracker->currentTrack].notes[tracker->rowOffset];
+    Note *note = getCurrentNote(tracker);
     note->command &= mask;
     note->command |= (tracker->keyToCommandCode[scancode] << nibblePos);
 
@@ -251,34 +265,34 @@ void nextOctave(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     screen_setOctave(tracker->octave);
 }
 
-void copyTrack(Tracker *tracker, Uint8 track) {
-    memcpy(&tracker->trackClipboard, &tracker->song.tracks[track], sizeof(Track));
+void copyTrack(Tracker *tracker) {
+    memcpy(&tracker->trackClipboard, getCurrentTrack(tracker), sizeof(Track));
 }
 
-void cutTrack(Tracker *tracker, Uint8 track) {
-    copyTrack(tracker, track);
-    clearTrack(&tracker->song.tracks[track]);
+void cutTrack(Tracker *tracker) {
+    copyTrack(tracker);
+    clearTrack(getCurrentTrack(tracker));
 }
 
 void cutData(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     if (keymod & KMOD_SHIFT) {
-        cutTrack(tracker, tracker->currentTrack);
+        cutTrack(tracker);
     }
 }
 
 void copyData(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     if (keymod & KMOD_SHIFT) {
-        copyTrack(tracker, tracker->currentTrack);
+        copyTrack(tracker);
     }
 }
 
-void pasteTrack(Tracker *tracker, Uint8 track) {
-    memcpy(&tracker->song.tracks[track], &tracker->trackClipboard, sizeof(Track));
+void pasteTrack(Tracker *tracker) {
+    memcpy(getCurrentTrack(tracker), &tracker->trackClipboard, sizeof(Track));
 }
 
 void pasteData(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     if (keymod & KMOD_SHIFT) {
-        pasteTrack(tracker, tracker->currentTrack);
+        pasteTrack(tracker);
     }
 }
 
@@ -357,13 +371,17 @@ bool loadSongWithName(Tracker *tracker, char *name) {
         return false;
     }
     clearSong(&tracker->song);
+    int pattern = 0;
     while (!feof(f)) {
         if (3 == fscanf(f, "%s %04x %04x\n", parameter, &address, &value)) {
+            if (strcmp(parameter, "pattern") == 0) {
+                pattern = address;
+            }
             if (strcmp(parameter, "note") == 0) {
                 int track = address / 256;
                 int note = address & 255;
-                if (track < MAX_TRACKS && note < MAX_TRACK_LENGTH) {
-                    Note *target = &tracker->song.tracks[track].notes[note];
+                if (track < TRACKS_PER_PATTERN && note < TRACK_LENGTH) {
+                    Note *target = &tracker->song.patterns[pattern].tracks[track].notes[note];
                     target->note = value;
                     if (target->patch == 0) {
                         target->patch = track+1;
@@ -373,16 +391,16 @@ bool loadSongWithName(Tracker *tracker, char *name) {
             if (strcmp(parameter, "patch") == 0) {
                 int track = address / 256;
                 int note = address & 255;
-                if (track < MAX_TRACKS && note < MAX_TRACK_LENGTH) {
-                    Note *target = &tracker->song.tracks[track].notes[note];
+                if (track < TRACKS_PER_PATTERN && note < TRACK_LENGTH) {
+                    Note *target = &tracker->song.patterns[pattern].tracks[track].notes[note];
                     target->patch = value;
                 }
             }
             if (strcmp(parameter, "cmd") == 0) {
                 int track = address / 256;
                 int note = address & 255;
-                if (track < MAX_TRACKS && note < MAX_TRACK_LENGTH) {
-                    Note *target = &tracker->song.tracks[track].notes[note];
+                if (track < TRACKS_PER_PATTERN && note < TRACK_LENGTH) {
+                    Note *target = &tracker->song.patterns[pattern].tracks[track].notes[note];
                     target->command = value;
                 }
             }
@@ -399,18 +417,30 @@ bool saveSongWithName(Tracker *tracker, char* name) {
     if (f  == NULL) {
         return false;
     }
-    for (int track = 0; track < MAX_TRACKS; track++) {
-        for (int row = 0; row < tracker->song.tracks[track].length; row++) {
-            Note note = tracker->song.tracks[track].notes[row];
-            Uint16  encodedNote = (track << 8) + row;
-            if (note.note != NOTE_NONE) {
-                fprintf(f, "note %04x %02x\n", encodedNote, note.note);
-                fprintf(f, "patch %04x %02x\n", encodedNote, note.patch);
-            }
-            if (note.command != 0) {
-                fprintf(f, "cmd %04x %03x\n", encodedNote, note.command & 0xFFF);
-            }
 
+    for (int pattern = 0; pattern < MAX_PATTERNS; pattern++) {
+        bool patternStored = false;
+        for (int track = 0; track < TRACKS_PER_PATTERN; track++) {
+            for (int row = 0; row < TRACK_LENGTH; row++) {
+                Note note = tracker->song.patterns[pattern].tracks[track].notes[row];
+                Uint16 encodedNote = (track << 8) + row;
+                if (note.note != NOTE_NONE) {
+                    if (!patternStored) {
+                        fprintf(f, "pattern %04x %04x\n", pattern, 0);
+                        patternStored = true;
+                    }
+                    fprintf(f, "note %04x %02x\n", encodedNote, note.note);
+                    fprintf(f, "patch %04x %02x\n", encodedNote, note.patch);
+                }
+                if (note.command != 0) {
+                    if (!patternStored) {
+                        fprintf(f, "pattern %04x %04x\n", pattern, 0);
+                        patternStored = true;
+                    }
+                    fprintf(f, "cmd %04x %03x\n", encodedNote, note.command & 0xFFF);
+                }
+
+            }
         }
     }
     fclose(f);
@@ -625,10 +655,9 @@ int main(int argc, char* args[]) {
     //return 0;
 
 
-    screen_setTrackData(0, &tracker->song.tracks[0]);
-    screen_setTrackData(1, &tracker->song.tracks[1]);
-    screen_setTrackData(2, &tracker->song.tracks[2]);
-    screen_setTrackData(3, &tracker->song.tracks[3]);
+    for (int i = 0; i < TRACKS_PER_PATTERN; i++) {
+        screen_setTrackData(i, &getCurrentPattern(tracker)->tracks[i]);
+    }
 
     Instrument instr1 = {
             .attack = 0,

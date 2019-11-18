@@ -1,16 +1,15 @@
 #ifndef SONG_H_
 #define SONG_H_
 
-#include "track.h"
+#include "pattern.h"
 
-#define MAX_TRACKS 256
+#define MAX_PATTERNS 999
 #define MAX_INSTRUMENTS 256
 
 typedef struct {
-    Track tracks[MAX_TRACKS];
+    Pattern patterns[MAX_PATTERNS];
     Instrument instruments[MAX_INSTRUMENTS];
     int bpm;
 } Song;
-
 
 #endif /* SONG_H_ */
