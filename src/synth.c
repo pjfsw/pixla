@@ -384,7 +384,7 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
 }
 
 Sint8 getSquareAmplitude(Uint8 offset) {
-    return (offset > 50) ? 127 : -128;
+    return (offset > 128) ? 127 : -128;
 }
 
 Sint8 getSawAmplitude(Uint8 offset) {
@@ -407,7 +407,7 @@ void createFilteredBuffer(GenerateWaveformFunc sampleFunc, Sint8* output, int fi
 }
 
 void _synth_initAudioTables(Synth *synth) {
-    createFilteredBuffer(getSquareAmplitude, synth->lowpassPulse, 16);
+    createFilteredBuffer(getSquareAmplitude, synth->lowpassPulse, 8);
     createFilteredBuffer(getSawAmplitude, synth->lowpassSaw, 4);
 
 
