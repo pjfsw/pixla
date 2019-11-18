@@ -498,6 +498,8 @@ char *_screen_waveFormName(Waveform waveform) {
         return "Saw";
     case NOISE:
         return "Noise";
+    case TRIANGLE:
+        return "Tria";
     }
     return "";
 }

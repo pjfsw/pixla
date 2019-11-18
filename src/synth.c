@@ -195,7 +195,6 @@ void _synth_updateAdsr(Synth *synth, Channel *ch) {
     }
 }
 
-
 Sint8 _synth_getSampleFromArray(Channel *ch) {
     Sint8 sample = ch->waveData.wave[ch->waveData.wavePos >> 8];
     return sample;
@@ -212,6 +211,15 @@ Sint8 _synth_getPulse(Channel *ch) {
 
 Sint8 _synth_getNoise(Channel *ch) {
     return rand() >> 24;
+}
+
+Sint8 _synth_getTriangle(Channel *ch) {
+    Uint16 offset = ch->waveData.wavePos - 16384;
+    if (offset < 32768) {
+        return (offset-16384)/128;
+    } else {
+        return (49151-offset)/128;
+    }
 }
 
 void _synth_updateWaveform(Synth *synth, Uint8 channel) {
@@ -258,6 +266,8 @@ void _synth_updateWaveform(Synth *synth, Uint8 channel) {
     case NOISE:
         wav->sampleFunc = _synth_getNoise;
         break;
+    case TRIANGLE:
+        wav->sampleFunc = _synth_getTriangle;
     }
 }
 

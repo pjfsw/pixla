@@ -818,6 +818,30 @@ int main(int argc, char* args[]) {
             }
     };
 
+    Instrument instr9 = {
+            .attack = 0,
+            .decay = 4,
+            .sustain = 64,
+            .release = 10,
+            .waves = {
+                    {
+                            .waveform = TRIANGLE,
+                            .note = 0,
+                            .length = 0,
+                            .pwm = 0,
+                            .dutyCycle = 18,
+                    },{
+                            .waveform = PWM,
+                            .note = 0,
+                            .length = 0
+                    }, {
+                            .waveform = PWM,
+                            .note = 0,
+                            .length = 0
+                    }
+            }
+    };
+
 
     memcpy(&tracker->song.instruments[1], &instr1, sizeof(Instrument));
     memcpy(&tracker->song.instruments[2], &instr2, sizeof(Instrument));
@@ -827,6 +851,7 @@ int main(int argc, char* args[]) {
     memcpy(&tracker->song.instruments[6], &instr6, sizeof(Instrument));
     memcpy(&tracker->song.instruments[7], &instr7, sizeof(Instrument));
     memcpy(&tracker->song.instruments[8], &instr8, sizeof(Instrument));
+    memcpy(&tracker->song.instruments[9], &instr9, sizeof(Instrument));
 
     synth_loadPatch(tracker->synth, 1, &instr1);
     synth_loadPatch(tracker->synth, 2, &instr2);
@@ -836,6 +861,7 @@ int main(int argc, char* args[]) {
     synth_loadPatch(tracker->synth, 6, &instr6);
     synth_loadPatch(tracker->synth, 7, &instr7);
     synth_loadPatch(tracker->synth, 8, &instr8);
+    synth_loadPatch(tracker->synth, 9, &instr9);
 
     SDL_Keymod keymod;
     bool quit = false;

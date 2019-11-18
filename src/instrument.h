@@ -20,7 +20,10 @@ typedef enum {
     /**
      * Pulse width modular waveform
      */
-    PWM
+    PWM,
+
+    /** Triangle wave form */
+    TRIANGLE
 } Waveform;
 
 typedef struct {
