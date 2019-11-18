@@ -11,11 +11,13 @@ Player *player_init(Synth *synth, Uint8 channels);
 
 void player_close(Player *player);
 
-void player_start(Player *player, Song *song);
+void player_start(Player *player, Song *song, Uint16 songPos);
 
 bool player_isPlaying(Player *player);
 
 Uint8 player_getCurrentRow(Player *player);
+
+Uint16 player_getSongPos(Player *player);
 
 void player_stop(Player *player);
 

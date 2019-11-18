@@ -35,6 +35,8 @@ typedef struct {
     int logo_h;
     Instrument *instrument;
     Track **tracks;
+    PatternPtr *arrangement;
+    Uint16 songPos;
     char rowNumbers[256][4];
     char* statusMsg;
     Uint8 rowOffset;
@@ -246,6 +248,14 @@ void screen_setTrackData(Uint8 track, Track *trackData) {
     screen->tracks[track] = trackData;
 }
 
+void screen_setArrangementData(PatternPtr *arrangement) {
+    screen->arrangement = arrangement;
+}
+
+void screen_setSongPos(Uint16 songPos) {
+    screen->songPos = songPos;
+}
+
 void screen_setSelectedColumn(Uint8 column) {
     screen->selectedColumn = column;
 }
@@ -329,6 +339,31 @@ void _screen_setEnabledCursorColor() {
 }
 
 void _screen_renderSong() {
+    char txt[12];
+    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_ADD);
+    if (screen->arrangement == NULL) {
+        return;
+    }
+    for (int i = 0; i < 8; i++) {
+        int songPosOffset = i + screen->songPos - 4;
+        if (songPosOffset >= 0 && songPosOffset < MAX_PATTERNS) {
+            if (screen->arrangement[songPosOffset].pattern >= 0) {
+                sprintf(txt, "%03d %03d", songPosOffset, screen->arrangement[songPosOffset].pattern);
+                screen_print(8, i * 10, txt, &statusColor);
+            } else {
+                screen_print(8, i * 10, "--End--", &statusColor);
+                break;
+            }
+
+        }
+    }
+    SDL_Rect pos = {
+            .x=8, .y = 39, .w=56, .h=10
+    };
+    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(screen->renderer, 255,255,255,100);
+    SDL_RenderFillRect(screen->renderer, &pos);
+
 }
 
 
@@ -343,8 +378,8 @@ void _screen_renderColumns() {
         int offset = y + screen->rowOffset - editOffset;
         if (offset > TRACK_LENGTH-1) {
             break;
-        }
 
+        }
         int screenY = getTrackRowY(y);
 
         if (offset >= 0) {

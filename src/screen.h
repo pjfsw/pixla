@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <SDL2/SDL.h>
 
+#include "song.h"
 #include "track.h"
 #include "trackermode.h"
 #include "instrument.h"
@@ -31,6 +32,14 @@ void screen_close();
  * trackData a pointer to an array of tracks containing track data
  */
 void screen_setTrackData(Uint8 track, Track *trackData);
+
+/**
+ * Set pointer to the song arrangement
+ */
+void screen_setArrangementData(PatternPtr *arrangement);
+
+/** Set the position in arrangement */
+void screen_setSongPos(Uint16 songPos);
 
 void screen_setSelectedTrack(Uint8 track);
 

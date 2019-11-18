@@ -18,6 +18,7 @@ typedef struct _Player {
     Synth *synth;
     Song *song;
     SDL_TimerID timerId;
+    Uint16 songPos;
     Uint8 rowOffset;
     Uint8 playbackTick;
     Uint8 channels;
@@ -32,10 +33,17 @@ Uint32 _player_playCallback(Uint32 interval, void *param) {
     Player *player = (Player*)param;
     Synth *synth = player->synth;
 
+    Uint16 patternToPlay = player->song->arrangement[player->songPos].pattern;
+    if (patternToPlay < 0 || patternToPlay >= MAX_PATTERNS) {
+        patternToPlay = 0;
+    }
+
+    Pattern *pattern = &player->song->patterns[patternToPlay];
+
     for (int channel = 0; channel < player->channels; channel++) {
-        Sint8 note = player->song->patterns[0].tracks[channel].notes[player->rowOffset].note;
-        Uint8 patch = player->song->patterns[0].tracks[channel].notes[player->rowOffset].patch;
-        Uint16 command = player->song->patterns[0].tracks[channel].notes[player->rowOffset].command;
+        Sint8 note = pattern->tracks[channel].notes[player->rowOffset].note;
+        Uint8 patch = pattern->tracks[channel].notes[player->rowOffset].patch;
+        Uint16 command = pattern->tracks[channel].notes[player->rowOffset].command;
         Uint8 effect = command >> 8;
         Uint8 parameter = command & 0xFF;
 
@@ -89,7 +97,14 @@ Uint32 _player_playCallback(Uint32 interval, void *param) {
     }
     if (player->playbackTick == 0) {
         // TODO variable track length
-        player->rowOffset = (player->rowOffset + 1) % 64;
+        player->rowOffset = player->rowOffset + 1;
+        if (player->rowOffset >= TRACK_LENGTH) {
+            player->rowOffset = 0;
+            player->songPos++;
+            if (player->songPos >= MAX_PATTERNS || player->song->arrangement[player->songPos].pattern < 0) {
+                player->songPos = 0;
+            }
+        }
     }
     player->playbackTick = (player->playbackTick + 1) % 4;
     return interval;
@@ -115,9 +130,10 @@ Uint32 _player_getDelayFromBpm(int bpm) {
     return 15000/bpm;
 }
 
-void player_start(Player *player, Song *song) {
+void player_start(Player *player, Song *song, Uint16 songPos) {
     player_stop(player);
     player->song = song;
+    player->songPos = songPos;
     player->rowOffset = 0;
     player->playbackTick = 0;
     player->timerId = SDL_AddTimer(_player_getDelayFromBpm(song->bpm)/4, _player_playCallback, player);
@@ -126,6 +142,11 @@ void player_start(Player *player, Song *song) {
 Uint8 player_getCurrentRow(Player *player) {
     return player->rowOffset;
 }
+
+Uint16 player_getSongPos(Player *player) {
+    return player->songPos;
+}
+
 
 void player_stop(Player *player) {
     if (player->timerId != 0) {
