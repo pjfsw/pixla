@@ -18,4 +18,6 @@ typedef struct {
     int bpm;
 } Song;
 
+void song_clear(Song *song);
+
 #endif /* SONG_H_ */

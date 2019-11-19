@@ -11,6 +11,8 @@
 #include "player.h"
 #include "note.h"
 #include "instrument.h"
+#include "defaultsettings.h"
+#include "persist.h"
 
 /*
 https://milkytracker.titandemo.org/docs/FT2.pdf
@@ -78,30 +80,6 @@ void gotoSongPos(Tracker *tracker, Uint16 pos) {
     for (int i = 0; i < TRACKS_PER_PATTERN; i++) {
         screen_setTrackData(i, &getCurrentPattern(tracker)->tracks[i]);
     }
-}
-
-void clearTrack(Track *track) {
-    for (int row = 0; row < TRACK_LENGTH; row++) {
-        track->notes[row].note = NOTE_NONE;
-        track->notes[row].patch = 0;
-        track->notes[row].command = 0;
-    }
-}
-
-void clearPattern(Pattern *pattern) {
-    for (int track = 0; track < TRACKS_PER_PATTERN; track++) {
-        clearTrack(&pattern->tracks[track]);
-    }
-}
-
-void clearSong(Song *song) {
-    for (int pattern = 0; pattern < MAX_PATTERNS; pattern++) {
-        clearPattern(&song->patterns[pattern]);
-        for (int i = 0; i < MAX_PATTERNS; i++) {
-            song->arrangement[i].pattern = -1;
-        }
-    }
-    song->arrangement[0].pattern = 0;
 }
 
 void moveToFirstRow(Tracker *tracker) {
@@ -337,7 +315,7 @@ void copyTrack(Tracker *tracker) {
 
 void cutTrack(Tracker *tracker) {
     copyTrack(tracker);
-    clearTrack(getCurrentTrack(tracker));
+    track_clear(getCurrentTrack(tracker));
 }
 
 void cutData(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -457,121 +435,17 @@ void registerNote(Tracker *tracker, SDL_Scancode scancode, Sint8 note) {
     tracker->keyHandler[scancode] = playOrUpdateNote;
 }
 
-bool loadSongWithName(Tracker *tracker, char *name) {
-    char parameter[20];
-    Uint32 address;
-    Uint32 value;
-
-    FILE *f = fopen(name, "r");
-    if (f == NULL) {
-        return false;
-    }
-    clearSong(&tracker->song);
-    int pattern = 0;
-    while (!feof(f)) {
-        if (3 == fscanf(f, "%s %04x %04x\n", parameter, &address, &value)) {
-            if (strcmp(parameter, "pattern") == 0) {
-                if (address >= MAX_PATTERNS) {
-                    address = MAX_PATTERNS;
-                }
-                pattern = address;
-            }
-            if (strcmp(parameter, "arr") == 0) {
-                if (address >= MAX_PATTERNS) {
-                    address = MAX_PATTERNS;
-                }
-                if (address < 0) {
-                    address = 0;
-                }
-                if (value >= MAX_PATTERNS) {
-                    value = MAX_PATTERNS;
-                }
-                tracker->song.arrangement[address].pattern = value;
-            }
-            if (strcmp(parameter, "note") == 0) {
-                int track = address / 256;
-                int note = address & 255;
-                if (track < TRACKS_PER_PATTERN && note < TRACK_LENGTH) {
-                    Note *target = &tracker->song.patterns[pattern].tracks[track].notes[note];
-                    target->note = value;
-                    if (target->patch == 0) {
-                        target->patch = track+1;
-                    }
-                }
-            }
-            if (strcmp(parameter, "patch") == 0) {
-                int track = address / 256;
-                int note = address & 255;
-                if (track < TRACKS_PER_PATTERN && note < TRACK_LENGTH) {
-                    Note *target = &tracker->song.patterns[pattern].tracks[track].notes[note];
-                    target->patch = value;
-                }
-            }
-            if (strcmp(parameter, "cmd") == 0) {
-                int track = address / 256;
-                int note = address & 255;
-                if (track < TRACKS_PER_PATTERN && note < TRACK_LENGTH) {
-                    Note *target = &tracker->song.patterns[pattern].tracks[track].notes[note];
-                    target->command = value;
-                }
-            }
-        }
-
-    }
-    fclose(f);
-    return true;
-}
-
-
-bool saveSongWithName(Tracker *tracker, char* name) {
-    FILE *f = fopen(name, "w");
-    if (f  == NULL) {
-        return false;
-    }
-
-    for (int pattern = 0; pattern < MAX_PATTERNS; pattern++) {
-        bool patternStored = false;
-        for (int track = 0; track < TRACKS_PER_PATTERN; track++) {
-            for (int row = 0; row < TRACK_LENGTH; row++) {
-                Note note = tracker->song.patterns[pattern].tracks[track].notes[row];
-                Uint16 encodedNote = (track << 8) + row;
-                if (note.note != NOTE_NONE) {
-                    if (!patternStored) {
-                        fprintf(f, "pattern %04x %04x\n", pattern, 0);
-                        patternStored = true;
-                    }
-                    fprintf(f, "note %04x %02x\n", encodedNote, note.note);
-                    fprintf(f, "patch %04x %02x\n", encodedNote, note.patch);
-                }
-                if (note.command != 0) {
-                    if (!patternStored) {
-                        fprintf(f, "pattern %04x %04x\n", pattern, 0);
-                        patternStored = true;
-                    }
-                    fprintf(f, "cmd %04x %03x\n", encodedNote, note.command & 0xFFF);
-                }
-
-            }
-        }
-    }
-    for (int pos = 0; pos < MAX_PATTERNS; pos++) {
-        if (tracker->song.arrangement[pos].pattern >= 0) {
-            fprintf(f, "arr %04x %04x\n", pos, tracker->song.arrangement[pos].pattern);
-        }
-    }
-    fclose(f);
-    return true;
-}
 
 void loadSong(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (!loadSongWithName(tracker, "song.pxm")) {
+    song_clear(&tracker->song);
+    if (!persist_loadSongWithName(&tracker->song, "song.pxm")) {
         screen_setStatusMessage("Could not open song.pxm");
     }
 
 }
 
 void saveSong(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (saveSongWithName(tracker, "song.pxm")) {
+    if (persist_saveSongWithName(&tracker->song, "song.pxm")) {
         screen_setStatusMessage("Successfully saved song.pxm");
     } else {
         screen_setStatusMessage("Could not save song.pxm");
@@ -762,12 +636,12 @@ int main(int argc, char* args[]) {
         return 1;
     }
 
-    clearSong(&tracker->song);
+    song_clear(&tracker->song);
     initKeyHandler();
     initNotes();
     initCommandKeys();
 
-    loadSongWithName(tracker, "song.pxm");
+    persist_loadSongWithName(&tracker->song, "song.pxm");
 
     screen_setArrangementData(tracker->song.arrangement);
     gotoSongPos(tracker, 0);
@@ -775,240 +649,10 @@ int main(int argc, char* args[]) {
     //synth_test();
     //return 0;
 
-
-
-    Instrument instr1 = {
-            .attack = 0,
-            .decay = 4,
-            .sustain = 50,
-            .release = 60,
-            .waves = {
-                    {
-                            .waveform = PWM,
-                            .note = 0,
-                            .length = 0,
-                            .pwm = 5,
-                            .dutyCycle = 108,
-                    },{
-                            .waveform = PWM,
-                            .note = 0,
-                            .length = 0
-                    }, {
-                            .waveform = PWM,
-                            .note = 0,
-                            .length = 0
-                    }
-            }
-    };
-
-    Instrument instr2 = {
-            .attack = 0,
-            .decay = 2,
-            .sustain = 20,
-            .release = 60,
-            .waves = {
-                    {
-                            .waveform = LOWPASS_PULSE,
-                            .note = 0,
-                            .length = 0
-                    },{
-                            .waveform = LOWPASS_PULSE,
-                            .note = 0,
-                            .length = 0
-                    }, {
-                            .waveform = LOWPASS_PULSE,
-                            .note = 0,
-                            .length = 0
-                    }
-            }
-    };
-
-    Instrument instr3 = {
-            .attack = 0,
-            .decay = 20,
-            .sustain = 100,
-            .release = 20,
-            .waves = {
-                    {
-                            .waveform = NOISE,
-                            .note = 0,
-                            .length = 10
-                    },{
-                            .waveform = PWM,
-                            .note = 0,
-                            .length = 30,
-                            .pwm = 0,
-                            .dutyCycle = 128
-                    }, {
-                            .waveform = NOISE,
-                            .note = 0,
-                            .length = 0
-                    }
-            }
-    };
-
-    Instrument instr4 = {
-            .attack = 0,
-            .decay = 1,
-            .sustain = 60,
-            .release = 40,
-            .waves = {
-                    {
-                            .waveform = LOWPASS_SAW,
-                            .note = 0,
-                            .length = 0
-                    },{
-                            .waveform = LOWPASS_SAW,
-                            .note = 0,
-                            .length = 0
-                    }, {
-                            .waveform = LOWPASS_SAW,
-                            .note = 0,
-                            .length = 0
-                    }
-            }
-    };
-
-
-    Instrument instr5 = {
-            .attack = 0,
-            .decay = 4,
-            .sustain = 64,
-            .release = 10,
-            .waves = {
-                    {
-                            .waveform = PWM,
-                            .note = 0,
-                            .length = 0,
-                            .pwm = 20,
-                            .dutyCycle = 18,
-                    },{
-                            .waveform = PWM,
-                            .note = 0,
-                            .length = 0
-                    }, {
-                            .waveform = PWM,
-                            .note = 0,
-                            .length = 0
-                    }
-            }
-    };
-
-    Instrument instr6 = {
-            .attack = 120,
-            .decay = 0,
-            .sustain = 60,
-            .release = 30,
-            .waves = {
-                    {
-                            .waveform = PWM,
-                            .note = 0,
-                            .length = 0,
-                            .pwm = 2,
-                            .dutyCycle = 28,
-                    },{
-                            .waveform = PWM,
-                            .note = 0,
-                            .length = 0
-                    }, {
-                            .waveform = PWM,
-                            .note = 0,
-                            .length = 0
-                    }
-            }
-    };
-
-
-    Instrument instr7 = {
-            .attack = 0,
-            .decay = 10,
-            .sustain = 40,
-            .release = 30,
-            .waves = {
-                    {
-                            .waveform = PWM,
-                            .note = 0,
-                            .length = 0,
-                            .pwm = 2,
-                            .dutyCycle = 28,
-                    },{
-                            .waveform = PWM,
-                            .note = 0,
-                            .length = 0
-                    }, {
-                            .waveform = PWM,
-                            .note = 0,
-                            .length = 0
-                    }
-            }
-    };
-
-    Instrument instr8 = {
-            .attack = 0,
-            .decay = 2,
-            .sustain = 0,
-            .release = 0,
-            .waves = {
-                    {
-                            .waveform = NOISE,
-                            .note = 0,
-                            .length = 10,
-                    },{
-                            .waveform = LOWPASS_SAW,
-                            .note = 0,
-                            .length = 0
-                    }, {
-                            .waveform = NOISE,
-                            .note = 0,
-                            .length = 0
-                    }
-            }
-    };
-
-    Instrument instr9 = {
-            .attack = 2,
-            .decay = 4,
-            .sustain = 74,
-            .release = 10,
-            .waves = {
-                    {
-                            .waveform = TRIANGLE,
-                            .note = 0,
-                            .length = 0,
-                            .pwm = 0,
-                            .dutyCycle = 18,
-                    },{
-                            .waveform = PWM,
-                            .note = 0,
-                            .length = 0
-                    }, {
-                            .waveform = PWM,
-                            .note = 0,
-                            .length = 0
-                    }
-            }
-    };
-
-
-    memcpy(&tracker->song.instruments[1], &instr1, sizeof(Instrument));
-    memcpy(&tracker->song.instruments[2], &instr2, sizeof(Instrument));
-    memcpy(&tracker->song.instruments[3], &instr3, sizeof(Instrument));
-    memcpy(&tracker->song.instruments[4], &instr4, sizeof(Instrument));
-    memcpy(&tracker->song.instruments[5], &instr5, sizeof(Instrument));
-    memcpy(&tracker->song.instruments[6], &instr6, sizeof(Instrument));
-    memcpy(&tracker->song.instruments[7], &instr7, sizeof(Instrument));
-    memcpy(&tracker->song.instruments[8], &instr8, sizeof(Instrument));
-    memcpy(&tracker->song.instruments[9], &instr9, sizeof(Instrument));
-
-    synth_loadPatch(tracker->synth, 1, &instr1);
-    synth_loadPatch(tracker->synth, 2, &instr2);
-    synth_loadPatch(tracker->synth, 3, &instr3);
-    synth_loadPatch(tracker->synth, 4, &instr4);
-    synth_loadPatch(tracker->synth, 5, &instr5);
-    synth_loadPatch(tracker->synth, 6, &instr6);
-    synth_loadPatch(tracker->synth, 7, &instr7);
-    synth_loadPatch(tracker->synth, 8, &instr8);
-    synth_loadPatch(tracker->synth, 9, &instr9);
+    defaultsettings_createInstruments(tracker->song.instruments);
+    for (int i = 1; i < MAX_INSTRUMENTS; i++) {
+        synth_loadPatch(tracker->synth, i, &tracker->song.instruments[i]);
+    }
 
     SDL_Keymod keymod;
     bool quit = false;

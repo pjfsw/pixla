@@ -9,5 +9,7 @@ typedef struct {
     Track tracks[TRACKS_PER_PATTERN];
 } Pattern;
 
+void pattern_clear(Pattern *pattern);
+
 
 #endif /* PATTERN_H_ */
