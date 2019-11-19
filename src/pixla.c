@@ -13,6 +13,7 @@
 #include "instrument.h"
 #include "defaultsettings.h"
 #include "persist.h"
+#include "keyhandler.h"
 
 /*
 https://milkytracker.titandemo.org/docs/FT2.pdf
@@ -27,17 +28,14 @@ http://coppershade.org/helpers/DOCS/protracker23.readme.txt
 */
 
 #define CHANNELS TRACKS_PER_PATTERN
-#define DEFAULT_TRACK_LENGTH 64
 #define SUBCOLUMNS 4
 
 typedef struct _Tracker Tracker;
 
-typedef void(*KeyHandler)(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod);
-
 typedef struct _Tracker {
     Synth *synth;
     Player *player;
-    KeyHandler keyHandler[256];
+    Keyhandler *keyhandler;
     Sint8 keyToNote[256];
     Uint8 keyToCommandCode[256];
     Uint8 stepping;
@@ -55,6 +53,46 @@ typedef struct _Tracker {
 } Tracker;
 
 Tracker *tracker;
+
+/**
+ * Predicate functions
+ */
+
+bool predicate_isEditMode(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+    return tracker->mode == EDIT;
+}
+
+bool predicate_isStopped(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+    return tracker->mode == STOP;
+}
+
+bool predicate_isPlaying(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+    return tracker->mode == PLAY;
+}
+
+
+bool predicate_isEditOnCommandColumn(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+    if (!predicate_isEditMode(tracker) || tracker->currentColumn < 1) {
+        return false;
+    }
+    return true;
+}
+
+bool predicate_isEditOnNoteColumn(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+    if (!predicate_isEditMode(tracker) || tracker->currentColumn > 0) {
+        return false;
+    }
+    return true;
+}
+
+bool predicate_isNotEditMode(void *userData) {
+    return !predicate_isEditMode(userData);
+}
 
 Pattern *getCurrentPattern(Tracker *tracker) {
     return &tracker->song.patterns[tracker->currentPattern];
@@ -86,21 +124,22 @@ void moveToFirstRow(Tracker *tracker) {
     tracker->rowOffset = 0;
 }
 
-void moveHome(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    moveToFirstRow(tracker);
+void moveHome(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    moveToFirstRow((Tracker*)userData);
 }
 
-void moveEnd(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    tracker->rowOffset = 63;
+void moveEnd(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    tracker->rowOffset = TRACK_LENGTH-1;
 }
 
 void moveUpSteps(Tracker *tracker, int steps) {
     tracker->rowOffset-=steps;
     if (tracker->rowOffset < 0) {
-        tracker->rowOffset += 64;
+        tracker->rowOffset += TRACK_LENGTH;
     }
 }
-void moveSongPosUp(Tracker *tracker) {
+void moveSongPosUp(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     if (tracker->currentPos == 0) {
         return;
     }
@@ -109,26 +148,23 @@ void moveSongPosUp(Tracker *tracker) {
 }
 
 
-void moveSongPosOrUp(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (keymod & KMOD_ALT) {
-        moveSongPosUp(tracker);
-        return;
-    }
-    moveUpSteps(tracker, 1);
+void moveUp(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    moveUpSteps((Tracker*)userData, 1);
 }
 
-void moveUpMany(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    moveUpSteps(tracker, 16);
+void moveUpMany(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    moveUpSteps((Tracker*)userData, 16);
 }
 
 void moveDownSteps(Tracker *tracker, int steps) {
     tracker->rowOffset+=steps;
-    if (tracker->rowOffset > 63) {
-        tracker->rowOffset -= 64;
+    if (tracker->rowOffset > TRACK_LENGTH-1) {
+        tracker->rowOffset -= TRACK_LENGTH;
     }
 }
 
-void moveSongPosDown(Tracker *tracker, SDL_Keymod keymod) {
+void moveSongPosDown(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
     if (tracker->currentPos >= MAX_PATTERNS-1) {
         return;
     }
@@ -140,21 +176,14 @@ void moveSongPosDown(Tracker *tracker, SDL_Keymod keymod) {
 }
 
 
-void moveDownMany(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
-    moveDownSteps(tracker, 16);
+void moveDownMany(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) {
+    moveDownSteps((Tracker*)userData, 16);
 }
 
-void moveSongPosOrDown(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
-    if (keymod & KMOD_ALT) {
-        moveSongPosDown(tracker, keymod);
-        return;
-    }
-    moveDownSteps(tracker, 1);
+void moveDown(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) {
+    moveDownSteps((Tracker*)userData, 1);
 }
 
-bool isEditMode(Tracker *tracker) {
-    return tracker->mode == EDIT;
-}
 
 void setMode(Tracker *tracker, Trackermode modeToSet) {
     tracker->mode = modeToSet;
@@ -162,28 +191,24 @@ void setMode(Tracker *tracker, Trackermode modeToSet) {
 };
 
 
-void increaseStepping(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
-    if (keymod & KMOD_SHIFT) {
-        if (tracker->stepping == 0) {
-            return;
-        }
-        tracker->stepping--;
-    } else {
-        if (tracker->stepping > 7) {
-            return;
-        }
-        tracker->stepping++;
-    }
-}
-
-void playNote(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note) {
-    synth_noteTrigger(synth, channel, patch, note);
-}
-
-void editCommand(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
-    if (!isEditMode(tracker) || tracker->currentColumn < 1) {
+void decreaseStepping(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    if (tracker->stepping == 0) {
         return;
     }
+    tracker->stepping--;
+}
+
+void increaseStepping(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
+    if (tracker->stepping > 7) {
+        return;
+    }
+    tracker->stepping++;
+}
+
+void editCommand(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) {
     int nibblePos = (3-tracker->currentColumn) * 4;
     Uint16 mask = 0XFFF - (0xF << nibblePos);
 
@@ -194,7 +219,9 @@ void editCommand(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
     moveDownSteps(tracker, tracker->stepping);
 }
 
-void handleAltkeys(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
+void muteTrack(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
     if (scancode == SDL_SCANCODE_Z) {
         bool mute = !synth_isChannelMuted(tracker->synth, 0);
         synth_muteChannel(tracker->synth, 0, mute);
@@ -213,42 +240,47 @@ void handleAltkeys(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
         screen_setChannelMute(3, mute);
     }
 }
-void playOrUpdateNote(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
-    if (isEditMode(tracker) && tracker->currentColumn > 0) {
-        editCommand(tracker, scancode, keymod);
-        return;
-    }
-    if (keymod & KMOD_LALT) {
-        printf("herpderp\n");
-        handleAltkeys(tracker, scancode, keymod);
-        return;
-    }
+
+void playNote(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
     if (tracker->keyToNote[scancode] > -1) {
         Sint8 note = tracker->keyToNote[scancode] + 12 * tracker->octave;
         if (note > 95) {
             return;
         }
-        if (isEditMode(tracker)) {
-            getCurrentNote(tracker)->note = note;
-            getCurrentNote(tracker)->patch = tracker->patch;
-            moveDownSteps(tracker, tracker->stepping);
-        }
-        playNote(tracker->synth, tracker->currentTrack, tracker->patch, note);
+        synth_noteTrigger(tracker->synth, tracker->currentTrack, tracker->patch, note);
         //SDL_AddTimer(100, stopJamming, tracker);
-        synth_noteRelease(tracker->synth, tracker->currentTrack);
+    }
+}
+
+void updateNote(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
+    if (tracker->keyToNote[scancode] > -1) {
+        Sint8 note = tracker->keyToNote[scancode] + 12 * tracker->octave;
+        if (note > 95) {
+            return;
+        }
+        getCurrentNote(tracker)->note = note;
+        getCurrentNote(tracker)->patch = tracker->patch;
+        moveDownSteps(tracker, tracker->stepping);
+        synth_noteTrigger(tracker->synth, tracker->currentTrack, tracker->patch, note);
 
     }
 }
 
 void skipRow(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
-    if (isEditMode(tracker)) {
+    if (predicate_isEditMode(tracker)) {
         moveDownSteps(tracker, tracker->stepping);
     } else {
         synth_noteRelease(tracker->synth, tracker->currentTrack);
     }
 }
 
-void deleteSongPos(Tracker *tracker) {
+void deleteSongPos(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
     if (tracker->currentPos == 0) {
         return;
     }
@@ -260,40 +292,42 @@ void deleteSongPos(Tracker *tracker) {
     gotoSongPos(tracker, tracker->currentPos);
 }
 
-void deleteNote(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (isEditMode(tracker)) {
-        if (keymod & KMOD_SHIFT) {
-            printf("DERPES\n");
-            getCurrentNote(tracker)->note = NOTE_NONE;
-            getCurrentNote(tracker)->patch = 0;
-            getCurrentNote(tracker)->command = 0;
-        } else if (tracker->currentColumn == 0) {
-            getCurrentNote(tracker)->note = NOTE_NONE;
-            getCurrentNote(tracker)->patch = 0;
-        } else if (tracker->currentColumn > 0) {
-            getCurrentNote(tracker)->command = 0;
-        }
-        moveDownSteps(tracker, tracker->stepping);
-    }
-}
+void deleteNoteOrCommand(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
 
-void deleteNoteOrSongPos(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (keymod & (KMOD_ALT | KMOD_SHIFT)) {
-        deleteSongPos(tracker);
-        return;
+    if (tracker->currentColumn == 0) {
+        getCurrentNote(tracker)->note = NOTE_NONE;
+        getCurrentNote(tracker)->patch = 0;
     } else {
-        deleteNote(tracker, scancode, keymod);
+        getCurrentNote(tracker)->command = 0;
     }
+    moveDownSteps(tracker, tracker->stepping);
 }
 
-void noteOff(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (isEditMode(tracker)) {
-        getCurrentNote(tracker)->note = NOTE_OFF;
-        moveDownSteps(tracker, tracker->stepping);
-    }
+void deleteNoteAndCommand(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
+    getCurrentNote(tracker)->note = NOTE_NONE;
+    getCurrentNote(tracker)->patch = 0;
+    getCurrentNote(tracker)->command = 0;
+    moveDownSteps(tracker, tracker->stepping);
 }
 
-void previousOctave(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
+void playNoteOff(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    synth_noteRelease(tracker->synth, tracker->currentTrack);
+}
+
+void insertNoteOff(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
+    getCurrentNote(tracker)->note = NOTE_OFF;
+    moveDownSteps(tracker, tracker->stepping);
+}
+
+void previousOctave(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
     if (tracker->octave == 0) {
         return;
     }
@@ -301,7 +335,9 @@ void previousOctave(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) 
     screen_setOctave(tracker->octave);
 }
 
-void nextOctave(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
+void nextOctave(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
     if (tracker->octave >= 6) {
         return;
     }
@@ -309,36 +345,22 @@ void nextOctave(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     screen_setOctave(tracker->octave);
 }
 
-void copyTrack(Tracker *tracker) {
+void copyTrack(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
     memcpy(&tracker->trackClipboard, getCurrentTrack(tracker), sizeof(Track));
 }
 
-void cutTrack(Tracker *tracker) {
-    copyTrack(tracker);
+void cutTrack(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    copyTrack(tracker, scancode, keymod);
     track_clear(getCurrentTrack(tracker));
 }
 
-void cutData(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (keymod & KMOD_SHIFT) {
-        cutTrack(tracker);
-    }
-}
-
-void copyData(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (keymod & KMOD_SHIFT) {
-        copyTrack(tracker);
-    }
-}
-
-void pasteTrack(Tracker *tracker) {
+void pasteTrack(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
     memcpy(getCurrentTrack(tracker), &tracker->trackClipboard, sizeof(Track));
 }
 
-void pasteData(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (keymod & KMOD_SHIFT) {
-        pasteTrack(tracker);
-    }
-}
 
 void gotoNextTrack(Tracker *tracker) {
     if (tracker->currentTrack < CHANNELS-1) {
@@ -348,6 +370,11 @@ void gotoNextTrack(Tracker *tracker) {
     }
 }
 
+void nextTrack(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    gotoNextTrack((Tracker*)userData);
+}
+
+
 void gotoPreviousTrack(Tracker *tracker) {
     if (tracker->currentTrack > 0) {
         tracker->currentTrack--;
@@ -355,16 +382,14 @@ void gotoPreviousTrack(Tracker *tracker) {
         screen_setSelectedTrack(tracker->currentTrack);
     }
 }
-
-void previousOrNextColumn(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (keymod & KMOD_SHIFT) {
-        gotoPreviousTrack(tracker);
-    } else {
-        gotoNextTrack(tracker);
-    }
+void previousTrack(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    gotoPreviousTrack((Tracker*)userData);
 }
 
-void previousPattern(Tracker *tracker) {
+
+void previousPattern(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
     if (tracker->song.arrangement[tracker->currentPos].pattern <= 0) {
         return;
     }
@@ -372,11 +397,9 @@ void previousPattern(Tracker *tracker) {
     gotoSongPos(tracker, tracker->currentPos);
 }
 
-void previousColumnOrPreviousPattern(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (keymod & KMOD_ALT) {
-        previousPattern(tracker);
-        return;
-    }
+void previousColumn(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
     if (tracker->currentColumn > 0) {
         tracker->currentColumn--;
     } else if (tracker->currentTrack > 0) {
@@ -386,7 +409,9 @@ void previousColumnOrPreviousPattern(Tracker *tracker, SDL_Scancode scancode, SD
     screen_setSelectedColumn(tracker->currentColumn);
 }
 
-void nextPattern(Tracker *tracker) {
+void nextPattern(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
     if (tracker->song.arrangement[tracker->currentPos].pattern >= MAX_PATTERNS-1) {
         return;
     }
@@ -394,11 +419,9 @@ void nextPattern(Tracker *tracker) {
     gotoSongPos(tracker, tracker->currentPos);
 }
 
-void nextColumnOrNextPattern(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (keymod & KMOD_ALT) {
-        nextPattern(tracker);
-        return;
-    }
+void nextColumn(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
     if (tracker->currentColumn < SUBCOLUMNS-1) {
         tracker->currentColumn++;
         screen_setSelectedColumn(tracker->currentColumn);
@@ -407,13 +430,12 @@ void nextColumnOrNextPattern(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod
     }
 }
 
-void insertEntity(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (keymod & KMOD_ALT) {
-
-    }
+void insertEntity(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
 }
 
-void previousPatch(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
+void previousPatch(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
     if (tracker->patch <= 1) {
         tracker->patch = 255;
     } else {
@@ -421,7 +443,9 @@ void previousPatch(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
     }
 }
 
-void nextPatch(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
+void nextPatch(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
     if (tracker->patch == 255) {
         tracker->patch = 1;
     } else {
@@ -432,7 +456,8 @@ void nextPatch(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
 
 void registerNote(Tracker *tracker, SDL_Scancode scancode, Sint8 note) {
     tracker->keyToNote[scancode] = note;
-    tracker->keyHandler[scancode] = playOrUpdateNote;
+    keyhandler_register(tracker->keyhandler, scancode, 0, predicate_isEditOnNoteColumn, updateNote, tracker);
+    keyhandler_register(tracker->keyhandler, scancode, 0, predicate_isNotEditMode, playNote, tracker);
 }
 
 
@@ -444,8 +469,8 @@ void loadSong(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
 
 }
 
-void saveSong(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (persist_saveSongWithName(&tracker->song, "song.pxm")) {
+void saveSong(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    if (persist_saveSongWithName((Song*)userData, "song.pxm")) {
         screen_setStatusMessage("Successfully saved song.pxm");
     } else {
         screen_setStatusMessage("Could not save song.pxm");
@@ -457,35 +482,44 @@ void resetChannelParams(Synth *synth, Uint8 channel) {
     synth_frequencyModulation(synth, channel, 0,0);
 }
 
+void startEditing(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
+    for (int i = 0; i < CHANNELS; i++) {
+        synth_noteOff(tracker->synth, i);
+        resetChannelParams(tracker->synth, i);
+    }
+    setMode(tracker, EDIT);
+}
+
+void stopEditing(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    for (int i = 0; i < CHANNELS; i++) {
+        synth_noteRelease(tracker->synth, i);
+        resetChannelParams(tracker->synth, i);
+    }
+    setMode(tracker, STOP);
+}
+
 void stopPlayback(Tracker *tracker) {
-    if (player_isPlaying(tracker->player)) {
-        player_stop(tracker->player);
-        for (int i = 0; i < CHANNELS; i++) {
-            synth_pitchGlideReset(tracker->synth, i);
-        }
+    player_stop(tracker->player);
+    for (int i = 0; i < CHANNELS; i++) {
+        synth_pitchGlideReset(tracker->synth, i);
+        synth_frequencyModulation(tracker->synth, i, 0, 0);
+        synth_noteRelease(tracker->synth, i);
+    }
 
-        tracker->rowOffset = player_getCurrentRow(tracker->player);
-    }
-    if (tracker->mode == STOP) {
-        setMode(tracker, EDIT);
-        for (int i = 0; i < CHANNELS; i++) {
-            synth_noteOff(tracker->synth, i);
-            resetChannelParams(tracker->synth, i);
-        }
-    } else {
-        setMode(tracker, STOP);
-        for (int i = 0; i < CHANNELS; i++) {
-            synth_noteRelease(tracker->synth, i);
-            resetChannelParams(tracker->synth, i);
-        }
-    }
+    tracker->rowOffset = player_getCurrentRow(tracker->player);
 }
 
-void stopSong(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    stopPlayback(tracker);
+void stopPlaying(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    stopPlayback((Tracker*)userData);
+    setMode(tracker, STOP);
 }
 
-void playPattern(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
+void playPattern(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
     stopPlayback(tracker);
     moveToFirstRow(tracker);
     player_start(tracker->player, &tracker->song, tracker->currentPos);
@@ -553,42 +587,93 @@ void initCommandKeys() {
     tracker->keyToCommandCode[SDL_SCANCODE_F] = 15;
 }
 
-void initKeyHandler() {
-    memset(tracker->keyHandler, 0, sizeof(KeyHandler*)*256);
-    tracker->keyHandler[SDL_SCANCODE_1] = editCommand;
-    tracker->keyHandler[SDL_SCANCODE_4] = editCommand;
-    tracker->keyHandler[SDL_SCANCODE_8] = editCommand;
-    tracker->keyHandler[SDL_SCANCODE_A] = editCommand;
-    tracker->keyHandler[SDL_SCANCODE_F] = editCommand;
 
-    tracker->keyHandler[SDL_SCANCODE_UP] = moveSongPosOrUp;
-    tracker->keyHandler[SDL_SCANCODE_DOWN] = moveSongPosOrDown;
-    tracker->keyHandler[SDL_SCANCODE_PAGEUP] = moveUpMany;
-    tracker->keyHandler[SDL_SCANCODE_PAGEDOWN] = moveDownMany;
-    tracker->keyHandler[SDL_SCANCODE_BACKSPACE] = deleteNoteOrSongPos;
-    tracker->keyHandler[SDL_SCANCODE_DELETE] = deleteNote;
-    tracker->keyHandler[SDL_SCANCODE_HOME] = moveHome;
-    tracker->keyHandler[SDL_SCANCODE_END] = moveEnd;
-    tracker->keyHandler[SDL_SCANCODE_GRAVE] = increaseStepping;
-    tracker->keyHandler[SDL_SCANCODE_NONUSBACKSLASH] = noteOff;
-    tracker->keyHandler[SDL_SCANCODE_F1] = previousOctave;
-    tracker->keyHandler[SDL_SCANCODE_F2] = nextOctave;
-    tracker->keyHandler[SDL_SCANCODE_F3] = cutData;
-    tracker->keyHandler[SDL_SCANCODE_F4] = copyData;
-    tracker->keyHandler[SDL_SCANCODE_F5] = pasteData;
+void initKeyMappings() {
+    Keyhandler *kh = tracker->keyhandler;
 
-    tracker->keyHandler[SDL_SCANCODE_F9] = previousPatch;
-    tracker->keyHandler[SDL_SCANCODE_F10] = nextPatch;
-    tracker->keyHandler[SDL_SCANCODE_F12] = saveSong;
+    /* Song commands */
+    keyhandler_register(kh, SDL_SCANCODE_UP, KM_ALT, NULL, moveSongPosUp, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_DOWN, KM_ALT, NULL, moveSongPosDown, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_DOWN, KM_SHIFT_ALT, NULL, moveSongPosDown, tracker);
 
-    tracker->keyHandler[SDL_SCANCODE_TAB] = previousOrNextColumn;
-    tracker->keyHandler[SDL_SCANCODE_LEFT] = previousColumnOrPreviousPattern;
-    tracker->keyHandler[SDL_SCANCODE_RIGHT] = nextColumnOrNextPattern;
-    tracker->keyHandler[SDL_SCANCODE_RETURN] = noteOff;
-    tracker->keyHandler[SDL_SCANCODE_RCTRL] = playPattern;
-    tracker->keyHandler[SDL_SCANCODE_SPACE] = stopSong;
+    keyhandler_register(kh, SDL_SCANCODE_LEFT, KM_ALT, NULL, previousPattern, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_RIGHT, KM_ALT, NULL, nextPattern, tracker);
 
-    tracker->keyHandler[SDL_SCANCODE_INSERT] = insertEntity;
+    //keyhandler_register(kh, SDL_SCANCODE_INSERT, KMOD_ALT | KMOD_SHIFT, predicate_isEditMode, deleteSongPos, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_BACKSPACE, KM_SHIFT_ALT, predicate_isEditMode, deleteSongPos, tracker);
+
+    keyhandler_register(kh, SDL_SCANCODE_F12, 0, NULL, saveSong, &tracker->song);
+
+    keyhandler_register(kh, SDL_SCANCODE_RCTRL, KM_CTRL, NULL, playPattern, tracker);
+
+    /* Track commands */
+
+    keyhandler_register(kh, SDL_SCANCODE_Z, KM_ALT, NULL, muteTrack, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_X, KM_ALT, NULL, muteTrack, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_C, KM_ALT, NULL, muteTrack, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_V, KM_ALT, NULL, muteTrack, tracker);
+
+    keyhandler_register(kh, SDL_SCANCODE_F3, KM_SHIFT, predicate_isEditMode, cutTrack, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_F4, KM_SHIFT, predicate_isEditMode, copyTrack, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_F5, KM_SHIFT, predicate_isEditMode, pasteTrack, tracker);
+
+    keyhandler_register(kh, SDL_SCANCODE_DELETE, KM_SHIFT, predicate_isEditMode, deleteNoteAndCommand, tracker);
+
+    keyhandler_register(kh, SDL_SCANCODE_0, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_1, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_2, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_3, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_4, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_5, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_6, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_7, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_8, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_9, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_A, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_B, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_C, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_D, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_E, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_F, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
+
+    keyhandler_register(kh, SDL_SCANCODE_DELETE, 0, predicate_isEditMode, deleteNoteOrCommand, tracker);
+
+    keyhandler_register(kh, SDL_SCANCODE_NONUSBACKSLASH, 0, predicate_isEditOnNoteColumn, insertNoteOff, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_RETURN, 0, predicate_isEditOnNoteColumn, insertNoteOff, tracker);
+
+    keyhandler_register(kh, SDL_SCANCODE_NONUSBACKSLASH, 0, predicate_isNotEditMode, playNoteOff, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_RETURN, 0, predicate_isNotEditMode, playNoteOff, tracker);
+
+    keyhandler_register(kh, SDL_SCANCODE_F1, 0, NULL, previousOctave, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_F2, 0, NULL, nextOctave, tracker);
+
+    keyhandler_register(kh, SDL_SCANCODE_F9, 0, NULL, previousPatch, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_F10, 0, NULL ,  nextPatch, tracker);
+
+
+    keyhandler_register(kh, SDL_SCANCODE_SPACE, 0, predicate_isEditMode, stopEditing, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_SPACE, 0, predicate_isStopped, startEditing, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_SPACE, 0, predicate_isPlaying, stopPlaying, tracker);
+
+    keyhandler_register(kh, SDL_SCANCODE_INSERT, 0, predicate_isEditMode, insertEntity, tracker);
+
+    /** Pattern movement */
+    keyhandler_register(kh, SDL_SCANCODE_UP, 0, NULL, moveUp, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_DOWN, 0, NULL, moveDown, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_PAGEUP, 0, NULL, moveUpMany, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_PAGEDOWN, 0, NULL, moveDownMany, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_LEFT, 0, NULL, previousColumn, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_RIGHT, 0, NULL, nextColumn, tracker);
+
+    keyhandler_register(kh, SDL_SCANCODE_HOME, 0, NULL, moveHome, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_END, 0, NULL, moveEnd, tracker);
+
+    keyhandler_register(kh, SDL_SCANCODE_GRAVE, KM_SHIFT, NULL, decreaseStepping, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_GRAVE, 0, NULL, increaseStepping, tracker);
+
+    keyhandler_register(kh, SDL_SCANCODE_TAB, KM_SHIFT, NULL, previousTrack, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_TAB, 0, NULL, nextTrack, tracker);
+
 }
 
 void tracker_close(Tracker *tracker) {
@@ -612,14 +697,17 @@ Tracker *tracker_init() {
     tracker->stepping = 1;
     tracker->patch = 1;
 
-    if (NULL == (tracker->synth = synth_init(CHANNELS))) {
+    if (
+            NULL == (tracker->synth = synth_init(CHANNELS)) ||
+            NULL == (tracker->player = player_init(tracker->synth, CHANNELS)) ||
+            NULL == (tracker->keyhandler = keyhandler_init())
+    ) {
         tracker_close(tracker);
         return NULL;
     }
-    if (NULL == (tracker->player = player_init(tracker->synth, CHANNELS))) {
-        tracker_close(tracker);
-        return NULL;
-    }
+    initKeyMappings();
+    initNotes();
+    initCommandKeys();
 
     return tracker;
 }
@@ -637,10 +725,6 @@ int main(int argc, char* args[]) {
     }
 
     song_clear(&tracker->song);
-    initKeyHandler();
-    initNotes();
-    initCommandKeys();
-
     persist_loadSongWithName(&tracker->song, "song.pxm");
 
     screen_setArrangementData(tracker->song.arrangement);
@@ -668,9 +752,7 @@ int main(int argc, char* args[]) {
             /* Pass the event data onto PrintKeyInfo() */
             case SDL_KEYDOWN:
                 keymod = SDL_GetModState();
-                if (tracker->keyHandler[event.key.keysym.scancode] != NULL) {
-                    tracker->keyHandler[event.key.keysym.scancode](tracker, event.key.keysym.scancode, keymod);
-                }
+                keyhandler_handle(tracker->keyhandler, event.key.keysym.scancode, keymod);
                 printf("Key %d\n", event.key.keysym.scancode);
 
                 break;
