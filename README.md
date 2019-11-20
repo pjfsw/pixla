@@ -26,9 +26,9 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - `Alt + Shift + Down` - Increase song position, if at the end, add another position
 - `Alt + Home` - Move to beginning of song
 - `Alt + End` - Move to end of song
-- `Alt + Shift + Backspace` - Remove previous song pattern
-- `Alt + Shift + Delete`- Remove current song pattern
-- `Alt + Shift + Insert `- Insert a pattern at position
+- `Alt + Backspace` - Remove previous song pattern
+- `Alt + Delete`- Remove current song pattern
+- `Alt + Insert `- Insert a pattern at position
 
 ## Instruments/Patches
 - Attack/Decay/Sustain/Release configurable per patch

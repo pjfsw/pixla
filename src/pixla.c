@@ -281,6 +281,14 @@ void moveSongPosEnd(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     gotoSongPos(tracker, tracker->currentPos);
 }
 
+int getSongLength(Song *song) {
+    for (int i = 0; i < MAX_PATTERNS; i++) {
+        if (song->arrangement[i].pattern < 0) {
+            return i;
+        }
+    }
+    return MAX_PATTERNS;
+}
 
 void moveSongPosUp(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
@@ -297,7 +305,7 @@ void moveSongPosDown(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
         return;
     }
     /* Only go past last arrangement if we press shift = add pattern */
-    if (tracker->song.arrangement[tracker->currentPos+1].pattern != -1 || (keymod & KMOD_SHIFT)) {
+    if (tracker->currentPos < getSongLength(&tracker->song)-1 || (keymod & KMOD_SHIFT)) {
         tracker->currentPos++;
         gotoSongPos(tracker, tracker->currentPos);
     }
@@ -309,7 +317,7 @@ void insertSongPos(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     for (int i = MAX_PATTERNS-1 ; i > tracker->currentPos; i--) {
         tracker->song.arrangement[i].pattern = tracker->song.arrangement[i-1].pattern;
     }
-    //tracker->currentPos--;
+    tracker->currentPos++;
     gotoSongPos(tracker, tracker->currentPos);
 }
 
@@ -330,14 +338,18 @@ void deletePreviousSongPos(void *userData, SDL_Scancode scancode, SDL_Keymod key
 void deleteCurrentSongPos(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
 
-    if ((tracker->currentPos == MAX_PATTERNS) || tracker->song.arrangement[tracker->currentPos+1].pattern == -1) {
+    if (getSongLength(&tracker->song) == 1) {
         tracker->song.arrangement[tracker->currentPos].pattern = 0;
         return;
     }
+
     for (int i = tracker->currentPos ; i < MAX_PATTERNS-1; i++) {
         tracker->song.arrangement[i].pattern = tracker->song.arrangement[i+1].pattern;
     }
     tracker->song.arrangement[MAX_PATTERNS-1].pattern = -1;
+    if (tracker->currentPos >= getSongLength(&tracker->song)) {
+        tracker->currentPos--;
+    }
     gotoSongPos(tracker, tracker->currentPos);
 }
 
@@ -643,22 +655,17 @@ void initKeyMappings(Tracker *tracker) {
 
     /* Song commands */
     keyhandler_register(kh, SDL_SCANCODE_UP, KM_ALT, NULL, moveSongPosUp, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_UP, KM_SHIFT_ALT, NULL, moveSongPosUp, tracker);
     keyhandler_register(kh, SDL_SCANCODE_DOWN, KM_ALT, NULL, moveSongPosDown, tracker);
     keyhandler_register(kh, SDL_SCANCODE_DOWN, KM_SHIFT_ALT, NULL, moveSongPosDown, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_HOME, KM_SHIFT_ALT, NULL, moveSongPosHome, tracker);
     keyhandler_register(kh, SDL_SCANCODE_HOME, KM_ALT, NULL, moveSongPosHome, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_END, KM_SHIFT_ALT, NULL, moveSongPosEnd, tracker);
     keyhandler_register(kh, SDL_SCANCODE_END, KM_ALT, NULL, moveSongPosEnd, tracker);
 
-    keyhandler_register(kh, SDL_SCANCODE_LEFT, KM_SHIFT_ALT, NULL, previousPattern, tracker);
     keyhandler_register(kh, SDL_SCANCODE_LEFT, KM_ALT, NULL, previousPattern, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_RIGHT, KM_SHIFT_ALT, NULL, nextPattern, tracker);
     keyhandler_register(kh, SDL_SCANCODE_RIGHT, KM_ALT, NULL, nextPattern, tracker);
 
-    keyhandler_register(kh, SDL_SCANCODE_INSERT, KM_SHIFT_ALT, NULL, insertSongPos, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_BACKSPACE, KM_SHIFT_ALT, NULL, deletePreviousSongPos, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_DELETE, KM_SHIFT_ALT, NULL, deleteCurrentSongPos, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_INSERT, KM_ALT, NULL, insertSongPos, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_BACKSPACE, KM_ALT, NULL, deletePreviousSongPos, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_DELETE, KM_ALT, NULL, deleteCurrentSongPos, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_F12, 0, NULL, saveSong, &tracker->song);
 

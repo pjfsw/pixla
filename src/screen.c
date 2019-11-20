@@ -20,7 +20,7 @@
 #define SONG_PANEL_W 56
 #define SONG_X_OFFSET SONG_PANEL_X + PANEL_PADDING
 #define SONG_Y_OFFSET SONG_PANEL_Y + PANEL_PADDING
-#define SONG_ROWS 8
+#define SONG_ROWS 12
 
 typedef struct {
     Uint8 x;
@@ -367,7 +367,7 @@ void _screen_renderSong() {
         }
     }
     SDL_Rect pos = {
-            .x=SONG_X_OFFSET, SONG_Y_OFFSET + 10 * SONG_HIGHLIGHT_OFFSET, .w=56, .h=10
+            .x=SONG_X_OFFSET-1, SONG_Y_OFFSET + 10 * SONG_HIGHLIGHT_OFFSET - 1, .w=56, .h=10
     };
     SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(screen->renderer, 255,255,255,100);
