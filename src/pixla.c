@@ -278,7 +278,17 @@ void skipRow(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
     }
 }
 
-void deleteSongPos(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+void insertSongPos(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
+    for (int i = MAX_PATTERNS-1 ; i > tracker->currentPos; i--) {
+        tracker->song.arrangement[i].pattern = tracker->song.arrangement[i-1].pattern;
+    }
+    //tracker->currentPos--;
+    gotoSongPos(tracker, tracker->currentPos);
+}
+
+void deletePreviousSongPos(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
 
     if (tracker->currentPos == 0) {
@@ -291,6 +301,21 @@ void deleteSongPos(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     tracker->currentPos--;
     gotoSongPos(tracker, tracker->currentPos);
 }
+
+void deleteCurrentSongPos(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
+    if ((tracker->currentPos == MAX_PATTERNS) || tracker->song.arrangement[tracker->currentPos+1].pattern == -1) {
+        tracker->song.arrangement[tracker->currentPos].pattern = 0;
+        return;
+    }
+    for (int i = tracker->currentPos ; i < MAX_PATTERNS-1; i++) {
+        tracker->song.arrangement[i].pattern = tracker->song.arrangement[i+1].pattern;
+    }
+    tracker->song.arrangement[MAX_PATTERNS-1].pattern = -1;
+    gotoSongPos(tracker, tracker->currentPos);
+}
+
 
 void deleteNoteOrCommand(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
@@ -599,8 +624,9 @@ void initKeyMappings() {
     keyhandler_register(kh, SDL_SCANCODE_LEFT, KM_ALT, NULL, previousPattern, tracker);
     keyhandler_register(kh, SDL_SCANCODE_RIGHT, KM_ALT, NULL, nextPattern, tracker);
 
-    //keyhandler_register(kh, SDL_SCANCODE_INSERT, KMOD_ALT | KMOD_SHIFT, predicate_isEditMode, deleteSongPos, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_BACKSPACE, KM_SHIFT_ALT, predicate_isEditMode, deleteSongPos, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_INSERT, KM_SHIFT_ALT, NULL, insertSongPos, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_BACKSPACE, KM_SHIFT_ALT, NULL, deletePreviousSongPos, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_DELETE, KM_SHIFT_ALT, NULL, deleteCurrentSongPos, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_F12, 0, NULL, saveSong, &tracker->song);
 

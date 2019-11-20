@@ -13,6 +13,15 @@
 #define INSTRUMENT_X 280
 #define INSTRUMENT_Y 40
 
+#define PANEL_PADDING 2
+#define SONG_HIGHLIGHT_OFFSET 4
+#define SONG_PANEL_X 2
+#define SONG_PANEL_Y 2
+#define SONG_PANEL_W 56
+#define SONG_X_OFFSET SONG_PANEL_X + PANEL_PADDING
+#define SONG_Y_OFFSET SONG_PANEL_Y + PANEL_PADDING
+#define SONG_ROWS 8
+
 typedef struct {
     Uint8 x;
     Uint8 w;
@@ -344,21 +353,21 @@ void _screen_renderSong() {
     if (screen->arrangement == NULL) {
         return;
     }
-    for (int i = 0; i < 8; i++) {
-        int songPosOffset = i + screen->songPos - 4;
+    for (int i = 0; i < SONG_ROWS; i++) {
+        int songPosOffset = i + screen->songPos - SONG_HIGHLIGHT_OFFSET;
         if (songPosOffset >= 0 && songPosOffset < MAX_PATTERNS) {
             if (screen->arrangement[songPosOffset].pattern >= 0) {
                 sprintf(txt, "%03d %03d", songPosOffset, screen->arrangement[songPosOffset].pattern);
-                screen_print(8, i * 10, txt, &statusColor);
+                screen_print(SONG_X_OFFSET, SONG_Y_OFFSET + i * 10, txt, &statusColor);
             } else {
-                screen_print(8, i * 10, "--End--", &statusColor);
+                screen_print(SONG_X_OFFSET, SONG_Y_OFFSET + i * 10, "--End--", &statusColor);
                 break;
             }
 
         }
     }
     SDL_Rect pos = {
-            .x=8, .y = 39, .w=56, .h=10
+            .x=SONG_X_OFFSET, SONG_Y_OFFSET + 10 * SONG_HIGHLIGHT_OFFSET, .w=56, .h=10
     };
     SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(screen->renderer, 255,255,255,100);
@@ -465,6 +474,14 @@ void _screen_renderDivisions() {
     SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
     SDL_SetRenderDrawColor(screen->renderer, 77,77,77,255);
     SDL_RenderDrawLine(screen->renderer,0,STATUS_ROW+8, SCREEN_WIDTH,STATUS_ROW+8);
+
+    SDL_Rect pos = {
+            .x = SONG_PANEL_X,
+            .y = SONG_PANEL_Y,
+            .w = 56 + PANEL_PADDING,
+            .h = SONG_ROWS * 10 + PANEL_PADDING
+    };
+    SDL_RenderDrawRect(screen->renderer, &pos);
 }
 
 void _screen_renderStatusOctave() {
@@ -554,8 +571,8 @@ void _screen_renderSelectedPatch() {
                 attackX, INSTRUMENT_Y + adsrOffset,
                 decayX, sustainY);
 
-        /* Sustain */
         int graphEnd = 319;
+        /* Sustain */
         int sustainX = graphEnd - instrument->release/adsrScaleX;
         if (sustainX < decayX) {
             sustainX = decayX;
