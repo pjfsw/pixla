@@ -10,7 +10,7 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - `4xy` - Vibrato, x = speed, y = depth
 
 ## Keys
-- `Left Alt + Z,X,C,V` - Mute channels 1-4
+- `Alt + Z,X,C,V` - Mute channels 1-4
 - `F1, F2` - Decrease/increase octave in editor
 - `Shift + F3` - Cut track
 - `Shift + F4` - Copy track
@@ -21,6 +21,14 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - `Half / Shift + Half` - Increase/Decrease stepping
 - `Del` - Delete note or command at cursor
 - `Shift + Del` - Delete note and command at cursor
+- `Alt + Left, Right` - Decrease/Increase pattern at position
+- `Alt + Up, Down` - Decrease/Increase song position
+- `Alt + Shift + Down` - Increase song position, if at the end, add another position
+- `Alt + Home` - Move to beginning of song
+- `Alt + End` - Move to end of song
+- `Alt + Shift + Backspace` - Remove previous song pattern
+- `Alt + Shift + Delete`- Remove current song pattern
+- `Alt + Shift + Insert `- Insert a pattern at position
 
 ## Instruments/Patches
 - Attack/Decay/Sustain/Release configurable per patch

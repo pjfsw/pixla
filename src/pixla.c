@@ -52,8 +52,6 @@ typedef struct _Tracker {
     Uint8 currentColumn;
 } Tracker;
 
-Tracker *tracker;
-
 /**
  * Predicate functions
  */
@@ -139,13 +137,6 @@ void moveUpSteps(Tracker *tracker, int steps) {
         tracker->rowOffset += TRACK_LENGTH;
     }
 }
-void moveSongPosUp(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (tracker->currentPos == 0) {
-        return;
-    }
-    tracker->currentPos--;
-    gotoSongPos(tracker, tracker->currentPos);
-}
 
 
 void moveUp(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -160,18 +151,6 @@ void moveDownSteps(Tracker *tracker, int steps) {
     tracker->rowOffset+=steps;
     if (tracker->rowOffset > TRACK_LENGTH-1) {
         tracker->rowOffset -= TRACK_LENGTH;
-    }
-}
-
-void moveSongPosDown(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
-    Tracker *tracker = (Tracker*)userData;
-    if (tracker->currentPos >= MAX_PATTERNS-1) {
-        return;
-    }
-    /* Only go past last arrangement if we press shift = add pattern */
-    if (tracker->song.arrangement[tracker->currentPos+1].pattern != -1 || (keymod & KMOD_SHIFT)) {
-        tracker->currentPos++;
-        gotoSongPos(tracker, tracker->currentPos);
     }
 }
 
@@ -209,6 +188,8 @@ void increaseStepping(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) {
 }
 
 void editCommand(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
     int nibblePos = (3-tracker->currentColumn) * 4;
     Uint16 mask = 0XFFF - (0xF << nibblePos);
 
@@ -275,6 +256,50 @@ void skipRow(Tracker *tracker, SDL_Scancode scancode,SDL_Keymod keymod) {
         moveDownSteps(tracker, tracker->stepping);
     } else {
         synth_noteRelease(tracker->synth, tracker->currentTrack);
+    }
+}
+
+
+
+void moveSongPosHome(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    tracker->currentPos = 0 ;
+    gotoSongPos(tracker, tracker->currentPos);
+}
+
+void moveSongPosEnd(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    tracker->currentPos = -1;
+    for (int i = 0; i < MAX_PATTERNS; i++) {
+        if (tracker->song.arrangement[i].pattern < 0) {
+            break;
+        }
+        tracker->currentPos++;
+        printf("pos = %d\n", tracker->currentPos);
+    }
+
+    gotoSongPos(tracker, tracker->currentPos);
+}
+
+
+void moveSongPosUp(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    if (tracker->currentPos == 0) {
+        return;
+    }
+    tracker->currentPos--;
+    gotoSongPos(tracker, tracker->currentPos);
+}
+
+void moveSongPosDown(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    if (tracker->currentPos >= MAX_PATTERNS-1) {
+        return;
+    }
+    /* Only go past last arrangement if we press shift = add pattern */
+    if (tracker->song.arrangement[tracker->currentPos+1].pattern != -1 || (keymod & KMOD_SHIFT)) {
+        tracker->currentPos++;
+        gotoSongPos(tracker, tracker->currentPos);
     }
 }
 
@@ -552,7 +577,7 @@ void playPattern(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
 };
 
 
-void initNotes() {
+void initNotes(Tracker *tracker) {
     memset(tracker->keyToNote, -1, sizeof(Sint8)*256);
     registerNote(tracker, SDL_SCANCODE_Z, 0);
     registerNote(tracker, SDL_SCANCODE_S, 1);
@@ -593,7 +618,7 @@ void initNotes() {
 
 }
 
-void initCommandKeys() {
+void initCommandKeys(Tracker *tracker) {
     tracker->keyToCommandCode[SDL_SCANCODE_0] = 0;
     tracker->keyToCommandCode[SDL_SCANCODE_1] = 1;
     tracker->keyToCommandCode[SDL_SCANCODE_2] = 2;
@@ -613,15 +638,22 @@ void initCommandKeys() {
 }
 
 
-void initKeyMappings() {
+void initKeyMappings(Tracker *tracker) {
     Keyhandler *kh = tracker->keyhandler;
 
     /* Song commands */
     keyhandler_register(kh, SDL_SCANCODE_UP, KM_ALT, NULL, moveSongPosUp, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_UP, KM_SHIFT_ALT, NULL, moveSongPosUp, tracker);
     keyhandler_register(kh, SDL_SCANCODE_DOWN, KM_ALT, NULL, moveSongPosDown, tracker);
     keyhandler_register(kh, SDL_SCANCODE_DOWN, KM_SHIFT_ALT, NULL, moveSongPosDown, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_HOME, KM_SHIFT_ALT, NULL, moveSongPosHome, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_HOME, KM_ALT, NULL, moveSongPosHome, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_END, KM_SHIFT_ALT, NULL, moveSongPosEnd, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_END, KM_ALT, NULL, moveSongPosEnd, tracker);
 
+    keyhandler_register(kh, SDL_SCANCODE_LEFT, KM_SHIFT_ALT, NULL, previousPattern, tracker);
     keyhandler_register(kh, SDL_SCANCODE_LEFT, KM_ALT, NULL, previousPattern, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_RIGHT, KM_SHIFT_ALT, NULL, nextPattern, tracker);
     keyhandler_register(kh, SDL_SCANCODE_RIGHT, KM_ALT, NULL, nextPattern, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_INSERT, KM_SHIFT_ALT, NULL, insertSongPos, tracker);
@@ -718,7 +750,7 @@ void tracker_close(Tracker *tracker) {
 }
 
 Tracker *tracker_init() {
-    tracker = calloc(1, sizeof(Tracker));
+    Tracker *tracker = calloc(1, sizeof(Tracker));
     tracker->song.bpm = 118;
     tracker->stepping = 1;
     tracker->patch = 1;
@@ -731,9 +763,9 @@ Tracker *tracker_init() {
         tracker_close(tracker);
         return NULL;
     }
-    initKeyMappings();
-    initNotes();
-    initCommandKeys();
+    initKeyMappings(tracker);
+    initNotes(tracker);
+    initCommandKeys(tracker);
 
     return tracker;
 }
