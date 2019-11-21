@@ -21,6 +21,12 @@
 #define SONG_X_OFFSET SONG_PANEL_X + PANEL_PADDING
 #define SONG_Y_OFFSET SONG_PANEL_Y + PANEL_PADDING
 #define SONG_ROWS 12
+#define PANEL_HEIGHT (SONG_ROWS * 10 + PANEL_PADDING)
+#define MID_PANEL_X (SONG_PANEL_X + SONG_PANEL_W) + 8
+#define MID_PANEL_Y SONG_PANEL_Y
+#define PANEL_X_OFFSET (MID_PANEL_X + PANEL_PADDING)
+#define PANEL_Y_OFFSET (MID_PANEL_Y + PANEL_PADDING)
+
 
 typedef struct {
     Uint8 x;
@@ -56,6 +62,7 @@ typedef struct {
     Uint8 selectedPatch;
     Uint8 octave;
     Trackermode trackermode;
+    PanelMode panelMode;
 } Screen;
 
 SDL_Color noteBeatColor = {255,255,255};
@@ -265,6 +272,10 @@ void screen_setSongPos(Uint16 songPos) {
     screen->songPos = songPos;
 }
 
+void screen_setPanelMode(PanelMode panelMode) {
+    screen->panelMode = panelMode;
+}
+
 void screen_setSelectedColumn(Uint8 column) {
     screen->selectedColumn = column;
 }
@@ -453,20 +464,22 @@ void _screen_renderColumns() {
     _screen_setEditColor();
     SDL_RenderFillRect(screen->renderer, &pos);
 
-    if (screen->trackermode == EDIT) {
-        _screen_setEnabledCursorColor();
-    } else {
-        _screen_setDisabledCursorColor();
-    }
-    SDL_Rect pos2 = {
-            .x=getColumnOffset(screen->selectedTrack)+screen->columnHighlight[screen->selectedColumn].x-2,
-            .y=getTrackRowY(editOffset)-2,
-            .w=screen->columnHighlight[screen->selectedColumn].w+3,
-            .h=12
-    };
+    if (screen->panelMode == PM_NORMAL) {
+        if (screen->trackermode == EDIT)  {
+            _screen_setEnabledCursorColor();
+        } else {
+            _screen_setDisabledCursorColor();
+        }
+        SDL_Rect pos2 = {
+                .x=getColumnOffset(screen->selectedTrack)+screen->columnHighlight[screen->selectedColumn].x-2,
+                .y=getTrackRowY(editOffset)-2,
+                .w=screen->columnHighlight[screen->selectedColumn].w+3,
+                .h=12
+        };
 
-    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
-    SDL_RenderDrawRect(screen->renderer, &pos2);
+        SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
+        SDL_RenderDrawRect(screen->renderer, &pos2);
+    }
 }
 
 
@@ -482,6 +495,16 @@ void _screen_renderDivisions() {
             .h = SONG_ROWS * 10 + PANEL_PADDING
     };
     SDL_RenderDrawRect(screen->renderer, &pos);
+
+    SDL_Rect pos2 = {
+            .x = MID_PANEL_X,
+            .y = MID_PANEL_Y,
+            .w = 200,
+            .h = PANEL_HEIGHT
+    };
+
+    SDL_RenderDrawRect(screen->renderer, &pos2);
+
 }
 
 void _screen_renderStatusOctave() {
@@ -597,6 +620,29 @@ void _screen_renderSelectedPatch() {
     }
 }
 
+void _screen_renderInstrumentPanel() {
+    if (screen->instrument == NULL) {
+        return;
+    }
+    char buf[30];
+    sprintf(buf, "Attack: %d", screen->instrument->attack);
+    screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET, buf, &statusColor);
+    sprintf(buf, "Decay: %d", screen->instrument->decay);
+    screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET + 10, buf, &statusColor);
+    sprintf(buf, "Sustain: %d", screen->instrument->sustain);
+    screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET + 20, buf, &statusColor);
+    sprintf(buf, "Release: %d", screen->instrument->release);
+    screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET + 30, buf, &statusColor);
+    for (int i = 0; i < 3; i++) {
+        sprintf(buf, "Waveform %d: %s", i+1, _screen_waveFormName(screen->instrument->waves[i].waveform));
+        screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET + 40 + i * 20, buf, &statusColor);
+        sprintf(buf, "Length: %d", screen->instrument->waves[i].length);
+        screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET + 50 + i * 20, buf, &statusColor);
+
+    }
+}
+
+
 void _screen_renderStatusMessage() {
     if (screen->statusMsg != NULL) {
         screen_print(16, STATUS_ROW, screen->statusMsg, &statusColor);
@@ -617,6 +663,13 @@ void screen_update() {
     _screen_renderLogo();
     _screen_renderSong();
     _screen_renderColumns();
+    switch (screen->panelMode) {
+    case PM_NORMAL:
+        break;
+    case PM_INSTRUMENT:
+        _screen_renderInstrumentPanel();
+        break;
+    }
     _screen_renderStatus();
 /*    _screen_renderGraphs();*/
     SDL_SetRenderDrawColor(screen->renderer, 0,0,0,0);
