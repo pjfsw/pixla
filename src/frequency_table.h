@@ -2,6 +2,7 @@
 #define FREQUENCY_TABLE_H_
 
 #define FREQUENCY_TABLE_LENGTH 96
+
 Uint16 frequencyTable[FREQUENCY_TABLE_LENGTH] = {
          /* C0 -B0 */
          33,

@@ -557,22 +557,6 @@ void _screen_renderStepping() {
     screen_print(0, STATUS_ROW, s, &statusColor);
 }
 
-char *_screen_waveFormName(Waveform waveform) {
-    switch (waveform) {
-    case PWM:
-        return "PWM";
-    case LOWPASS_PULSE:
-        return "Pulse";
-    case LOWPASS_SAW:
-        return "Saw";
-    case NOISE:
-        return "Noise";
-    case TRIANGLE:
-        return "Tria";
-    }
-    return "";
-}
-
 void _screen_renderSelectedPatch() {
     char s[20];
 
@@ -615,7 +599,7 @@ void _screen_renderSelectedPatch() {
 
         for (int i = 0; i < 3; i++) {
             Wavesegment *wav = &instrument->waves[i];
-            sprintf(s, "%d: %s", i+1, _screen_waveFormName(wav->waveform));
+            sprintf(s, "%d: %s", i+1, instrument_getWaveformName(wav->waveform));
             screen_print(graphEnd + 8, INSTRUMENT_Y + adsrOffset + i * 10, s, &statusColor);
             if (wav->length == 0) {
                 break;
@@ -631,24 +615,7 @@ void _screen_renderInstrumentPanel() {
     }
 
     SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
-    settings_render(screen->instrumentSettings, screen->renderer, PANEL_X_OFFSET, PANEL_Y_OFFSET, 10);
-
-    /*char buf[30];
-    sprintf(buf, "Attack: %d", screen->instrument->attack);
-    screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET, buf, &statusColor);
-    sprintf(buf, "Decay: %d", screen->instrument->decay);
-    screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET + 10, buf, &statusColor);
-    sprintf(buf, "Sustain: %d", screen->instrument->sustain);
-    screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET + 20, buf, &statusColor);
-    sprintf(buf, "Release: %d", screen->instrument->release);
-    screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET + 30, buf, &statusColor);
-    for (int i = 0; i < 3; i++) {
-        sprintf(buf, "Waveform %d: %s", i+1, _screen_waveFormName(screen->instrument->waves[i].waveform));
-        screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET + 40 + i * 20, buf, &statusColor);
-        sprintf(buf, "Length: %d", screen->instrument->waves[i].length);
-        screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET + 50 + i * 20, buf, &statusColor);
-
-    }*/
+    settings_render(screen->instrumentSettings, screen->renderer, PANEL_X_OFFSET, PANEL_Y_OFFSET, 12);
 }
 
 

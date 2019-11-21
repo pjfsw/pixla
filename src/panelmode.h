@@ -3,8 +3,7 @@
 
 typedef enum {
     PM_NORMAL = 0,
-    BAJS = 23,
-    PM_INSTRUMENT = 30
+    PM_INSTRUMENT = 1
 } PanelMode;
 
 

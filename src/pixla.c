@@ -34,10 +34,14 @@ http://coppershade.org/helpers/DOCS/protracker23.readme.txt
 typedef struct _Tracker Tracker;
 
 typedef struct {
-    char attack[5];
-    char decay[5];
-    char sustain[5];
-    char release[5];
+    char attack[6];
+    char decay[6];
+    char sustain[6];
+    char release[6];
+    char note[3][6];
+    char length[3][6];
+    char dutyCycle[3][6];
+    char pwm[3][6];
 } InstrumentSettingsData;
 
 typedef struct _Tracker {
@@ -647,62 +651,62 @@ Instrument *getCurrentInstrument(Tracker *tracker) {
     return &tracker->song.instruments[tracker->patch];
 }
 
-void instrDecreaseAttack(void *userData) {
+void instrDecreaseAttack(void *userData, int userIndex) {
     Instrument *instr = getCurrentInstrument((Tracker*)userData);
     if (instr->attack > 0) {
         instr->attack--;
     }
 }
 
-void instrIncreaseAttack(void *userData) {
+void instrIncreaseAttack(void *userData, int userIndex) {
     Instrument *instr = getCurrentInstrument((Tracker*)userData);
     if (instr->attack < 127) {
         instr->attack++;
     }
 }
 
-char *instrGetAttack(void *userData) {
+char *instrGetAttack(void *userData, int userIndex) {
     Tracker *tracker = (Tracker*)userData;
     sprintf(tracker->instrumentSettingsData.attack, "%d", tracker->song.instruments[tracker->patch].attack);
     return tracker->instrumentSettingsData.attack;
 }
 
-void instrDecreaseDecay(void *userData) {
+void instrDecreaseDecay(void *userData, int userIndex) {
     Instrument *instr = getCurrentInstrument((Tracker*)userData);
     if (instr->decay > 0) {
         instr->decay--;
     }
 }
 
-void instrIncreaseDecay(void *userData) {
+void instrIncreaseDecay(void *userData, int userIndex) {
     Instrument *instr = getCurrentInstrument((Tracker*)userData);
     if (instr->decay < 127) {
         instr->decay++;
     }
 }
 
-char *instrGetDecay(void *userData) {
+char *instrGetDecay(void *userData, int userIndex) {
     Tracker *tracker = (Tracker*)userData;
     sprintf(tracker->instrumentSettingsData.decay, "%d", tracker->song.instruments[tracker->patch].decay);
     return tracker->instrumentSettingsData.decay;
 }
 
 
-void instrDecreaseSustain(void *userData) {
+void instrDecreaseSustain(void *userData, int userIndex) {
     Instrument *instr = getCurrentInstrument((Tracker*)userData);
     if (instr->sustain > 0) {
         instr->sustain--;
     }
 }
 
-void instrIncreaseSustain(void *userData) {
+void instrIncreaseSustain(void *userData, int userIndex) {
     Instrument *instr = getCurrentInstrument((Tracker*)userData);
     if (instr->sustain < 127) {
         instr->sustain++;
     }
 }
 
-char *instrGetSustain(void *userData) {
+char *instrGetSustain(void *userData, int userIndex) {
     Tracker *tracker = (Tracker*)userData;
     sprintf(tracker->instrumentSettingsData.sustain, "%d", tracker->song.instruments[tracker->patch].sustain);
     return tracker->instrumentSettingsData.sustain;
@@ -710,28 +714,165 @@ char *instrGetSustain(void *userData) {
 
 
 
-void instrDecreaseRelease(void *userData) {
+void instrDecreaseRelease(void *userData, int userIndex) {
     Instrument *instr = getCurrentInstrument((Tracker*)userData);
     if (instr->release > 0) {
         instr->release--;
     }
 }
 
-void instrIncreaseRelease(void *userData) {
+void instrIncreaseRelease(void *userData, int userIndex) {
     Instrument *instr = getCurrentInstrument((Tracker*)userData);
     if (instr->release < 127) {
         instr->release++;
     }
 }
 
-char *instrGetRelease(void *userData) {
+char *instrGetRelease(void *userData, int userIndex) {
     Tracker *tracker = (Tracker*)userData;
     sprintf(tracker->instrumentSettingsData.release, "%d", tracker->song.instruments[tracker->patch].release);
     return tracker->instrumentSettingsData.release;
 }
 
+void instrDecreaseWave(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+
+    switch (instr->waves[index].waveform) {
+    case LOWPASS_SAW:
+        instr->waves[index].waveform = TRIANGLE;
+        break;
+    case LOWPASS_PULSE:
+        instr->waves[index].waveform = LOWPASS_SAW;
+        break;
+    case NOISE:
+        instr->waves[index].waveform = LOWPASS_PULSE;
+        break;
+    case PWM:
+        instr->waves[index].waveform = NOISE;
+        break;
+    case TRIANGLE:
+        instr->waves[index].waveform = PWM;
+        break;
+    }
+}
+void instrIncreaseWave(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+
+    switch (instr->waves[index].waveform) {
+    case LOWPASS_SAW:
+        instr->waves[index].waveform = LOWPASS_PULSE;
+        break;
+    case LOWPASS_PULSE:
+        instr->waves[index].waveform = NOISE;
+        break;
+    case NOISE:
+        instr->waves[index].waveform = PWM;
+        break;
+    case PWM:
+        instr->waves[index].waveform = TRIANGLE;
+        break;
+    case TRIANGLE:
+        instr->waves[index].waveform = LOWPASS_SAW;
+        break;
+    }
+}
+
+char* instrGetWave(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+
+    return instrument_getWaveformName(instr->waves[index].waveform);
+}
+
+void instrDecreaseNote(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->waves[index].note > -128) {
+        instr->waves[index].note--;
+    }
 
 
+}
+
+void instrIncreaseNote(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->waves[index].note < 95) {
+        instr->waves[index].note++;
+    }
+}
+
+char* instrGetNote(void *userData, int index) {
+    Tracker *tracker = (Tracker*)userData;
+    Instrument *instr = getCurrentInstrument(tracker);
+
+    sprintf(tracker->instrumentSettingsData.note[index], "%d", instr->waves[index].note);
+    return tracker->instrumentSettingsData.note[index];
+}
+
+void instrDecreaseLength(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->waves[index].length > 0) {
+        instr->waves[index].length--;
+    }
+}
+
+void instrIncreaseLength(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->waves[index].length < 32767) {
+        instr->waves[index].length++;
+    }
+}
+
+char* instrGetLength(void *userData, int index) {
+    Tracker *tracker = (Tracker*)userData;
+    Instrument *instr = getCurrentInstrument(tracker);
+
+    sprintf(tracker->instrumentSettingsData.length[index], "%d", instr->waves[index].length);
+    return tracker->instrumentSettingsData.length[index];
+}
+
+void instrDecreaseDutyCycle(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->waves[index].dutyCycle > 0) {
+        instr->waves[index].dutyCycle--;
+    }
+}
+
+void instrIncreaseDutyCycle(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->waves[index].dutyCycle < 255) {
+        instr->waves[index].dutyCycle++;
+    }
+}
+
+char* instrGetDutyCycle(void *userData, int index) {
+    Tracker *tracker = (Tracker*)userData;
+    Instrument *instr = getCurrentInstrument(tracker);
+
+    sprintf(tracker->instrumentSettingsData.dutyCycle[index], "%d", instr->waves[index].dutyCycle);
+    return tracker->instrumentSettingsData.dutyCycle[index];
+}
+
+
+void instrDecreasePWM(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->waves[index].pwm > 0) {
+        instr->waves[index].pwm--;
+    }
+}
+
+void instrIncreasePWM(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->waves[index].pwm < 255) {
+        instr->waves[index].pwm++;
+    }
+}
+
+char* instrGetPWM(void *userData, int index) {
+    Tracker *tracker = (Tracker*)userData;
+    Instrument *instr = getCurrentInstrument(tracker);
+
+    sprintf(tracker->instrumentSettingsData.pwm[index], "%d", instr->waves[index].pwm);
+    return tracker->instrumentSettingsData.pwm[index];
+}
 
 void initNotes(Tracker *tracker) {
     memset(tracker->keyToNote, -1, sizeof(Sint8)*256);
@@ -919,10 +1060,19 @@ void createInstrumentSettings(Tracker *tracker) {
     tracker->instrumentSettings = settings_create();
     SettingsComponent *sc = tracker->instrumentSettings;
 
-    settings_add(sc, "Attack", instrDecreaseAttack, instrIncreaseAttack, instrGetAttack, NULL, tracker);
-    settings_add(sc, "Decay", instrDecreaseDecay, instrIncreaseDecay, instrGetDecay, NULL, tracker);
-    settings_add(sc, "Sustain", instrDecreaseSustain, instrIncreaseSustain, instrGetSustain, NULL, tracker);
-    settings_add(sc, "Release", instrDecreaseRelease, instrIncreaseRelease, instrGetRelease, NULL, tracker);
+    settings_add(sc, "Attack", instrDecreaseAttack, instrIncreaseAttack, instrGetAttack, NULL, tracker, 0);
+    settings_add(sc, "Decay", instrDecreaseDecay, instrIncreaseDecay, instrGetDecay, NULL, tracker, 0);
+    settings_add(sc, "Sustain", instrDecreaseSustain, instrIncreaseSustain, instrGetSustain, NULL, tracker, 0);
+    settings_add(sc, "Release", instrDecreaseRelease, instrIncreaseRelease, instrGetRelease, NULL, tracker, 0);
+    for (int i = 0; i < 3; i++) {
+        char buf[10];
+        sprintf(buf, "Wave %d", i+1);
+        settings_add(sc, buf, instrDecreaseWave, instrIncreaseWave, instrGetWave, NULL, tracker , i);
+        settings_add(sc, " Length", instrDecreaseLength, instrIncreaseLength, instrGetLength, NULL, tracker, i);
+        settings_add(sc, " Note", instrDecreaseNote, instrIncreaseNote, instrGetNote, NULL, tracker, i);
+        settings_add(sc, " Duty Cycle", instrDecreaseDutyCycle, instrIncreaseDutyCycle, instrGetDutyCycle, NULL, tracker, i);
+        settings_add(sc, " PWM", instrDecreasePWM, instrIncreasePWM, instrGetPWM, NULL, tracker, i);
+    }
 }
 
 Tracker *tracker_init() {

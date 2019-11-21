@@ -10,6 +10,7 @@ typedef struct {
     SettingsIsActiveFunc isActiveFunc;
     char *label;
     void *userData;
+    int userIndex;
 } SettingsItem;
 
 typedef struct _SettingsComponent {
@@ -34,6 +35,7 @@ void settings_close(SettingsComponent *settings) {
     if (settings != NULL) {
         for (int i = 0; i < MAX_SETTINGS; i++) {
             if (settings->settings[i] != NULL) {
+                free(settings->settings[i]->label);
                 free(settings->settings[i]);
                 settings->settings[i] = NULL;
             }
@@ -51,16 +53,19 @@ void settings_add(
         SettingsAlterationFunc increaseFunc,
         SettingsValueGetterFunc valueGetter,
         SettingsIsActiveFunc isActiveFunc,
-        void *userData) {
+        void *userData,
+        int userIndex) {
     for (int i = 0; i < MAX_SETTINGS; i++) {
         if (settings->settings[i] == NULL) {
             SettingsItem *settingsItem = calloc(1, sizeof(SettingsItem));
-            settingsItem->label = label;
+            settingsItem->label = calloc(strlen(label)+1, 1);
+            strcpy(settingsItem->label, label);
             settingsItem->decreaseFunc = decreaseFunc;
             settingsItem->increaseFunc = increaseFunc;
             settingsItem->isActiveFunc = isActiveFunc;
             settingsItem->valueGetter = valueGetter;
             settingsItem->userData = userData;
+            settingsItem->userIndex = userIndex;
             settings->settings[i] = settingsItem;
             settings->settingCount++;
             return;
@@ -87,13 +92,13 @@ void settings_prev(SettingsComponent *settings) {
 
 void settings_increase(SettingsComponent *settings) {
     SettingsItem *setting = settings->settings[settings->currentSetting];
-    setting->increaseFunc(setting->userData);
+    setting->increaseFunc(setting->userData, setting->userIndex);
 
 }
 
 void settings_decrease(SettingsComponent *settings) {
     SettingsItem *setting = settings->settings[settings->currentSetting];
-    setting->decreaseFunc(setting->userData);
+    setting->decreaseFunc(setting->userData, setting->userIndex);
 }
 
 void settings_render(SettingsComponent *settings, SDL_Renderer *renderer, int x, int y, int maxRows) {
@@ -115,7 +120,7 @@ void settings_render(SettingsComponent *settings, SDL_Renderer *renderer, int x,
     for (int row = 0; row < rowsToRender; row++) {
         SettingsItem *item = settings->settings[settings->rowOffset+row];
         char *label = item->label;
-        char *value = item->valueGetter(item->userData);
+        char *value = item->valueGetter(item->userData, item->userIndex);
         char cursor = settings->rowOffset+row == settings->currentSetting ? '>' : ' ';
         sprintf(buf, "%c%s: %s",cursor, label, value);
         screen_print(x,y + row * 10, buf, &color);

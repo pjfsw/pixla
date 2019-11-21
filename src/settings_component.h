@@ -4,11 +4,11 @@
 #include <stdbool.h>
 #include <SDL2/SDL.h>
 
-typedef void (*SettingsAlterationFunc)(void *userData);
+typedef void (*SettingsAlterationFunc)(void *userData, int userIndex);
 
-typedef char* (*SettingsValueGetterFunc)(void *userData);
+typedef char* (*SettingsValueGetterFunc)(void *userData, int userIndex);
 
-typedef bool (*SettingsIsActiveFunc)(void *userData);
+typedef bool (*SettingsIsActiveFunc)(void *userData, int userIndex);
 
 typedef struct _SettingsComponent SettingsComponent;
 
@@ -39,7 +39,8 @@ void settings_add(
         SettingsAlterationFunc increaseFunc,
         SettingsValueGetterFunc valueGetter,
         SettingsIsActiveFunc isActiveFunc,
-        void *userData
+        void *userData,
+        int userIndex
         );
 
 /**

@@ -80,5 +80,6 @@ typedef struct {
     Wavesegment waves[3];
 } Instrument;
 
+char *instrument_getWaveformName(Waveform waveform);
 
 #endif /* INSTRUMENT_H_ */
