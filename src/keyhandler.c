@@ -73,7 +73,7 @@ void keyhandler_handle(
 ) {
     for (int i = 0; i < MAX_HANDLERS_PER_SCANCODE; i++) {
         KeyhandlerMapping *km = &keyhandler->keyHandler[scancode][i];
-        printf("%d\n", i);
+//        printf("%d\n", i);
         if (
                 (km->keyhandlerFunc != NULL) &&
                 _keyhandler_validateModifier(keymod, km->keyhandlerModifier) &&

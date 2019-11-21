@@ -51,6 +51,7 @@ typedef struct {
     Instrument *instrument;
     Track **tracks;
     PatternPtr *arrangement;
+    SettingsComponent *instrumentSettings;
     Uint16 songPos;
     char rowNumbers[256][4];
     char* statusMsg;
@@ -274,6 +275,10 @@ void screen_setSongPos(Uint16 songPos) {
 
 void screen_setPanelMode(PanelMode panelMode) {
     screen->panelMode = panelMode;
+}
+
+void screen_setInstrumentSettings(SettingsComponent *instrumentSettings) {
+    screen->instrumentSettings = instrumentSettings;
 }
 
 void screen_setSelectedColumn(Uint8 column) {
@@ -621,10 +626,14 @@ void _screen_renderSelectedPatch() {
 }
 
 void _screen_renderInstrumentPanel() {
-    if (screen->instrument == NULL) {
+    if (screen->instrument == NULL || screen->instrumentSettings == NULL) {
         return;
     }
-    char buf[30];
+
+    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
+    settings_render(screen->instrumentSettings, screen->renderer, PANEL_X_OFFSET, PANEL_Y_OFFSET, 10);
+
+    /*char buf[30];
     sprintf(buf, "Attack: %d", screen->instrument->attack);
     screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET, buf, &statusColor);
     sprintf(buf, "Decay: %d", screen->instrument->decay);
@@ -639,7 +648,7 @@ void _screen_renderInstrumentPanel() {
         sprintf(buf, "Length: %d", screen->instrument->waves[i].length);
         screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET + 50 + i * 20, buf, &statusColor);
 
-    }
+    }*/
 }
 
 

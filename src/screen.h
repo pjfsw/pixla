@@ -9,6 +9,7 @@
 #include "trackermode.h"
 #include "instrument.h"
 #include "panelmode.h"
+#include "settings_component.h"
 
 /*
  * Initialize screen
@@ -26,6 +27,7 @@ bool screen_init(Uint8 numberOfTracks);
  */
 void screen_close();
 
+void screen_print(int x, int y, char* msg, SDL_Color *color);
 /*
  * Set pointers to column data to render
  *
@@ -34,6 +36,7 @@ void screen_close();
  */
 void screen_setTrackData(Uint8 track, Track *trackData);
 
+void screen_setInstrumentSettings(SettingsComponent *instrumentSettings);
 /**
  * Set pointer to the song arrangement
  */
@@ -43,6 +46,8 @@ void screen_setArrangementData(PatternPtr *arrangement);
 void screen_setSongPos(Uint16 songPos);
 
 void screen_setPanelMode(PanelMode panelMode);
+
+void screen_setInstrumentSettings(SettingsComponent *instrumentSettings);
 
 void screen_setSelectedTrack(Uint8 track);
 
@@ -63,6 +68,8 @@ void screen_setTrackermode(Trackermode trackermode);
 void screen_setChannelMute(Uint8 track, bool mute);
 
 void screen_setTableToShow(Sint8 *table, Uint8 elements);
+
+
 /*
  * Update screen
  */

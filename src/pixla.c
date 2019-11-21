@@ -33,10 +33,19 @@ http://coppershade.org/helpers/DOCS/protracker23.readme.txt
 
 typedef struct _Tracker Tracker;
 
+typedef struct {
+    char attack[5];
+    char decay[5];
+    char sustain[5];
+    char release[5];
+} InstrumentSettingsData;
+
 typedef struct _Tracker {
     Synth *synth;
     Player *player;
     Keyhandler *keyhandler;
+    SettingsComponent *instrumentSettings;
+    InstrumentSettingsData instrumentSettingsData;
     Sint8 keyToNote[256];
     Uint8 keyToCommandCode[256];
     Uint8 stepping;
@@ -50,8 +59,8 @@ typedef struct _Tracker {
     Uint16 currentPattern;
     Song song;
     Trackermode mode;
-    PanelMode panelMode;
     Uint8 currentColumn;
+    PanelMode panelMode;
 } Tracker;
 
 /**
@@ -75,12 +84,12 @@ bool predicate_isPlaying(void *userData) {
 
 bool predicate_isPanelNormal(void *userData) {
     Tracker *tracker = (Tracker*)userData;
-    return tracker->panelMode == PM_NORMAL;
+    return PM_NORMAL == tracker->panelMode;
 }
 
 bool predicate_isPanelInstrument(void *userData) {
     Tracker *tracker = (Tracker*)userData;
-    return tracker->panelMode == PM_INSTRUMENT;
+    return PM_INSTRUMENT == tracker->panelMode ;
 }
 
 
@@ -287,7 +296,7 @@ void moveSongPosEnd(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
             break;
         }
         tracker->currentPos++;
-        printf("pos = %d\n", tracker->currentPos);
+        //printf("pos = %d\n", tracker->currentPos);
     }
 
     gotoSongPos(tracker, tracker->currentPos);
@@ -611,6 +620,119 @@ void setDefaultPanelMode(void *userData, SDL_Scancode scancode, SDL_Keymod keymo
     tracker->panelMode = PM_NORMAL;
 }
 
+
+void gotoPreviousSetting(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    settings_prev(tracker->instrumentSettings);
+}
+
+void gotoNextSetting(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    settings_next(tracker->instrumentSettings);
+}
+
+void decreaseSetting(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    settings_decrease(tracker->instrumentSettings);
+    synth_loadPatch(tracker->synth, tracker->patch, &tracker->song.instruments[tracker->patch]);
+
+}
+void increaseSetting(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    settings_increase(tracker->instrumentSettings);
+    synth_loadPatch(tracker->synth, tracker->patch, &tracker->song.instruments[tracker->patch]);
+}
+
+Instrument *getCurrentInstrument(Tracker *tracker) {
+    return &tracker->song.instruments[tracker->patch];
+}
+
+void instrDecreaseAttack(void *userData) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->attack > 0) {
+        instr->attack--;
+    }
+}
+
+void instrIncreaseAttack(void *userData) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->attack < 127) {
+        instr->attack++;
+    }
+}
+
+char *instrGetAttack(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+    sprintf(tracker->instrumentSettingsData.attack, "%d", tracker->song.instruments[tracker->patch].attack);
+    return tracker->instrumentSettingsData.attack;
+}
+
+void instrDecreaseDecay(void *userData) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->decay > 0) {
+        instr->decay--;
+    }
+}
+
+void instrIncreaseDecay(void *userData) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->decay < 127) {
+        instr->decay++;
+    }
+}
+
+char *instrGetDecay(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+    sprintf(tracker->instrumentSettingsData.decay, "%d", tracker->song.instruments[tracker->patch].decay);
+    return tracker->instrumentSettingsData.decay;
+}
+
+
+void instrDecreaseSustain(void *userData) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->sustain > 0) {
+        instr->sustain--;
+    }
+}
+
+void instrIncreaseSustain(void *userData) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->sustain < 127) {
+        instr->sustain++;
+    }
+}
+
+char *instrGetSustain(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+    sprintf(tracker->instrumentSettingsData.sustain, "%d", tracker->song.instruments[tracker->patch].sustain);
+    return tracker->instrumentSettingsData.sustain;
+}
+
+
+
+void instrDecreaseRelease(void *userData) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->release > 0) {
+        instr->release--;
+    }
+}
+
+void instrIncreaseRelease(void *userData) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->release < 127) {
+        instr->release++;
+    }
+}
+
+char *instrGetRelease(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+    sprintf(tracker->instrumentSettingsData.release, "%d", tracker->song.instruments[tracker->patch].release);
+    return tracker->instrumentSettingsData.release;
+}
+
+
+
+
 void initNotes(Tracker *tracker) {
     memset(tracker->keyToNote, -1, sizeof(Sint8)*256);
     registerNote(tracker, SDL_SCANCODE_Z, 0);
@@ -765,11 +887,21 @@ void initKeyMappings(Tracker *tracker) {
     keyhandler_register(kh, SDL_SCANCODE_I, KM_SHIFT, NULL, setInstrumentPanelMode, tracker);
     keyhandler_register(kh, SDL_SCANCODE_O, KM_SHIFT, NULL, setDefaultPanelMode, tracker);
 
+    /** Instrument editor */
+    keyhandler_register(kh, SDL_SCANCODE_UP, 0, predicate_isPanelInstrument, gotoPreviousSetting, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_DOWN, 0, predicate_isPanelInstrument, gotoNextSetting, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_LEFT, 0, predicate_isPanelInstrument, decreaseSetting, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_RIGHT, 0, predicate_isPanelInstrument, increaseSetting, tracker);
+
 
 }
 
 void tracker_close(Tracker *tracker) {
     if (NULL != tracker) {
+        if (tracker->instrumentSettings != NULL) {
+            settings_close(tracker->instrumentSettings);
+            tracker->instrumentSettings = NULL;
+        }
         if (tracker->player != NULL) {
             player_close(tracker->player);
             tracker->player = NULL;
@@ -781,6 +913,16 @@ void tracker_close(Tracker *tracker) {
         free(tracker);
         tracker = NULL;
     }
+}
+
+void createInstrumentSettings(Tracker *tracker) {
+    tracker->instrumentSettings = settings_create();
+    SettingsComponent *sc = tracker->instrumentSettings;
+
+    settings_add(sc, "Attack", instrDecreaseAttack, instrIncreaseAttack, instrGetAttack, NULL, tracker);
+    settings_add(sc, "Decay", instrDecreaseDecay, instrIncreaseDecay, instrGetDecay, NULL, tracker);
+    settings_add(sc, "Sustain", instrDecreaseSustain, instrIncreaseSustain, instrGetSustain, NULL, tracker);
+    settings_add(sc, "Release", instrDecreaseRelease, instrIncreaseRelease, instrGetRelease, NULL, tracker);
 }
 
 Tracker *tracker_init() {
@@ -797,6 +939,7 @@ Tracker *tracker_init() {
         tracker_close(tracker);
         return NULL;
     }
+    createInstrumentSettings(tracker);
     initKeyMappings(tracker);
     initNotes(tracker);
     initCommandKeys(tracker);
@@ -817,6 +960,10 @@ int main(int argc, char* args[]) {
         tracker_close(tracker);
         return 1;
     }
+
+
+    screen_setInstrumentSettings(tracker->instrumentSettings);
+
 
     song_clear(&tracker->song);
     persist_loadSongWithName(&tracker->song, "song.pxm");

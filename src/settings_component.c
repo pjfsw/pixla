@@ -1,4 +1,5 @@
 #include "settings_component.h"
+#include "screen.h"
 
 #define MAX_SETTINGS 100
 
@@ -96,6 +97,8 @@ void settings_decrease(SettingsComponent *settings) {
 }
 
 void settings_render(SettingsComponent *settings, SDL_Renderer *renderer, int x, int y, int maxRows) {
+    SDL_Color color = {.r = 255, .g=255, .b=255, .a=255};
+
     if (settings->currentSetting < settings->rowOffset) {
         settings->rowOffset = settings->currentSetting;
     }
@@ -115,10 +118,9 @@ void settings_render(SettingsComponent *settings, SDL_Renderer *renderer, int x,
         char *value = item->valueGetter(item->userData);
         char cursor = settings->rowOffset+row == settings->currentSetting ? '>' : ' ';
         sprintf(buf, "%c%s: %s",cursor, label, value);
-        for (int i = 0 ; buf[i] != 0; i++) {
+        screen_print(x,y + row * 10, buf, &color);
             //Font .. SDL_Copy to render herperp
      //   _settings_print(renderer, buf, x, y);
-        }
     }
 
 }

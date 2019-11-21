@@ -2,8 +2,9 @@
 #define PANELMODE_H_
 
 typedef enum {
-    PM_NORMAL,
-    PM_INSTRUMENT
+    PM_NORMAL = 0,
+    BAJS = 23,
+    PM_INSTRUMENT = 30
 } PanelMode;
 
 
