@@ -7,22 +7,17 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - `0xy` - Arpeggio, 4x speed playing note, note + x, note + y, note + 12
 - `1xy` - Slide up, max 4 octaves up from note value then sliding stops
 - `2xy` - Slide down, max 4 octaves down from note value then sliding stops
+- `3xy` - Tone portamento, only xy == 00 supported (change pitch)
 - `4xy` - Vibrato, x = speed, y = depth
 
 ## Keys
-- `Alt + Z,X,C,V` - Mute channels 1-4
+
+- `Shift + F1,F2,F3,F4` - Mute channels 1-4
 - `F1, F2` - Decrease/increase octave in editor
-- `Shift + F3` - Cut track
-- `Shift + F4` - Copy track
-- `Shift + F5` - Paste track
 - `Space` - Stop/Edit
 - `Right Ctrl` - Play Pattern
 - `F9, F10` - Select instrument
 - `Half / Shift + Half` - Increase/Decrease stepping
-- `Backspace` - Delete previous row
-- `Insert` - Insert row at current position
-- `Del` - Delete note or command at cursor
-- `Shift + Del` - Delete note and command at cursor
 - `Alt + Left, Right` - Decrease/Increase pattern at position
 - `Alt + Up, Down` - Decrease/Increase song position
 - `Alt + Shift + Down` - Increase song position, if at the end, add another position
@@ -30,7 +25,27 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - `Alt + End` - Move to end of song
 - `Alt + Backspace` - Remove previous song pattern
 - `Alt + Delete`- Remove current song pattern
-- `Alt + Insert `- Insert a pattern at position
+- `Alt + Insert`- Insert a pattern at position
+- `Shift + I` - Activate instrument editor mode
+- `Shift + O` - Activate normal mode
+
+### Instrument editor mode
+
+- `Up, Down` - Navigate through instrument settings
+- `Left, Right` - Alter current instrument setting
+
+### Edit mode
+
+- `Shift + X` - Cut track
+- `Shift + C` - Copy track
+- `Shift + V` - Paste track
+- `Alt + X` - Cut pattern
+- `Alt + C` - Copy pattern
+- `Alt + V` - Paste pattern
+- `Backspace` - Delete previous row
+- `Insert` - Insert row at current position
+- `Del` - Delete note or command at cursor
+- `Shift + Del` - Delete note and command at cursor
 
 ## Instruments/Patches
 - Attack/Decay/Sustain/Release configurable per patch

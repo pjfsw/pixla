@@ -30,6 +30,10 @@ http://coppershade.org/helpers/DOCS/protracker23.readme.txt
 
 #define CHANNELS TRACKS_PER_PATTERN
 #define SUBCOLUMNS 4
+#define MUTE_SC_1 SDL_SCANCODE_F1
+#define MUTE_SC_2 SDL_SCANCODE_F2
+#define MUTE_SC_3 SDL_SCANCODE_F3
+#define MUTE_SC_4 SDL_SCANCODE_F4
 
 typedef struct _Tracker Tracker;
 
@@ -56,6 +60,7 @@ typedef struct _Tracker {
     Uint8 octave;
     Uint8 patch;
     Track trackClipboard;
+    Pattern patternClipboard;
 
     Sint8 rowOffset;
     Uint16 currentPos;
@@ -228,19 +233,19 @@ void editCommand(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) {
 void muteTrack(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
 
-    if (scancode == SDL_SCANCODE_Z) {
+    if (scancode == MUTE_SC_1) {
         bool mute = !synth_isChannelMuted(tracker->synth, 0);
         synth_muteChannel(tracker->synth, 0, mute);
         screen_setChannelMute(0, mute);
-    } else if (scancode == SDL_SCANCODE_X) {
+    } else if (scancode == MUTE_SC_2) {
         bool mute = !synth_isChannelMuted(tracker->synth, 1);
         synth_muteChannel(tracker->synth, 1, mute);
         screen_setChannelMute(1, mute);
-    } else if (scancode == SDL_SCANCODE_C) {
+    } else if (scancode == MUTE_SC_3) {
         bool mute = !synth_isChannelMuted(tracker->synth, 2);
         synth_muteChannel(tracker->synth, 2, mute);
         screen_setChannelMute(2, mute);
-    } else if (scancode == SDL_SCANCODE_V) {
+    } else if (scancode == MUTE_SC_4) {
         bool mute = !synth_isChannelMuted(tracker->synth, 3);
         synth_muteChannel(tracker->synth, 3, mute);
         screen_setChannelMute(3, mute);
@@ -470,6 +475,9 @@ void nextOctave(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     screen_setOctave(tracker->octave);
 }
 
+/*
+ * Track clipboard operations
+ */
 void copyTrack(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
     memcpy(&tracker->trackClipboard, getCurrentTrack(tracker), sizeof(Track));
@@ -485,6 +493,26 @@ void pasteTrack(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
     memcpy(getCurrentTrack(tracker), &tracker->trackClipboard, sizeof(Track));
 }
+
+/*
+ * Pattern clipboard operations
+ */
+void copyPattern(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    memcpy(&tracker->patternClipboard, getCurrentPattern(tracker), sizeof(Pattern));
+}
+
+void cutPattern(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    copyPattern(tracker, scancode, keymod);
+    pattern_clear(getCurrentPattern(tracker));
+}
+
+void pastePattern(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    memcpy(getCurrentPattern(tracker), &tracker->patternClipboard, sizeof(Pattern));
+}
+
 
 
 void gotoNextTrack(Tracker *tracker) {
@@ -984,14 +1012,18 @@ void initKeyMappings(Tracker *tracker) {
 
     /* Track commands */
 
-    keyhandler_register(kh, SDL_SCANCODE_Z, KM_ALT, NULL, muteTrack, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_X, KM_ALT, NULL, muteTrack, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_C, KM_ALT, NULL, muteTrack, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_V, KM_ALT, NULL, muteTrack, tracker);
+    keyhandler_register(kh, MUTE_SC_1, KM_SHIFT, NULL, muteTrack, tracker);
+    keyhandler_register(kh, MUTE_SC_2, KM_SHIFT, NULL, muteTrack, tracker);
+    keyhandler_register(kh, MUTE_SC_3, KM_SHIFT, NULL, muteTrack, tracker);
+    keyhandler_register(kh, MUTE_SC_4, KM_SHIFT, NULL, muteTrack, tracker);
 
-    keyhandler_register(kh, SDL_SCANCODE_F3, KM_SHIFT, predicate_isEditMode, cutTrack, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_F4, KM_SHIFT, predicate_isEditMode, copyTrack, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_F5, KM_SHIFT, predicate_isEditMode, pasteTrack, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_X, KM_SHIFT, predicate_isEditMode, cutTrack, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_C, KM_SHIFT, predicate_isEditMode, copyTrack, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_V, KM_SHIFT, predicate_isEditMode, pasteTrack, tracker);
+
+    keyhandler_register(kh, SDL_SCANCODE_X, KM_ALT, predicate_isEditMode, cutPattern, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_C, KM_ALT, predicate_isEditMode, copyPattern, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_V, KM_ALT, predicate_isEditMode, pastePattern, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_DELETE, KM_SHIFT, predicate_isEditMode, deleteNoteAndCommand, tracker);
 
