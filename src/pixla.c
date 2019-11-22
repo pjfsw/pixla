@@ -378,6 +378,44 @@ void deleteCurrentSongPos(void *userData, SDL_Scancode scancode, SDL_Keymod keym
     gotoSongPos(tracker, tracker->currentPos);
 }
 
+void clearNote(Note *note) {
+    note->note = NOTE_NONE;
+    note->patch = 0;
+    note->command = 0;
+}
+
+void deletePreviousNote(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
+    if (tracker->rowOffset == 0) {
+        return;
+    }
+
+    for (int i = tracker->rowOffset; i < TRACK_LENGTH; i++) {
+        Note *target = &getCurrentTrack(tracker)->notes[i-1];
+        Note *src = &getCurrentTrack(tracker)->notes[i];
+        target->note = src->note;
+        target->patch = src->patch;
+        target->command = src->command;
+    }
+    clearNote(&getCurrentTrack(tracker)->notes[TRACK_LENGTH-1]);
+    moveUpSteps(tracker, 1);
+}
+
+void insertBeforeNote(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
+    for (int i = TRACK_LENGTH-1; i > tracker->rowOffset; i--) {
+        Note *target = &getCurrentTrack(tracker)->notes[i];
+        Note *src = &getCurrentTrack(tracker)->notes[i-1];
+        target->note = src->note;
+        target->patch = src->patch;
+        target->command = src->command;
+    }
+    clearNote(getCurrentNote(tracker));
+    moveDownSteps(tracker, 1);
+}
+
 
 void deleteNoteOrCommand(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
@@ -515,9 +553,6 @@ void nextColumn(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     } else {
         gotoNextTrack(tracker);
     }
-}
-
-void insertEntity(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
 }
 
 void previousPatch(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -978,6 +1013,7 @@ void initKeyMappings(Tracker *tracker) {
     keyhandler_register(kh, SDL_SCANCODE_F, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_DELETE, 0, predicate_isEditMode, deleteNoteOrCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_BACKSPACE, 0, predicate_isEditMode, deletePreviousNote, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_NONUSBACKSLASH, 0, predicate_isEditOnNoteColumn, insertNoteOff, tracker);
     keyhandler_register(kh, SDL_SCANCODE_RETURN, 0, predicate_isEditOnNoteColumn, insertNoteOff, tracker);
@@ -996,7 +1032,7 @@ void initKeyMappings(Tracker *tracker) {
     keyhandler_register(kh, SDL_SCANCODE_SPACE, 0, predicate_isStopped, startEditing, tracker);
     keyhandler_register(kh, SDL_SCANCODE_SPACE, 0, predicate_isPlaying, stopPlaying, tracker);
 
-    keyhandler_register(kh, SDL_SCANCODE_INSERT, 0, predicate_isEditMode, insertEntity, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_INSERT, 0, predicate_isEditMode, insertBeforeNote, tracker);
 
     /** Pattern movement */
     keyhandler_register(kh, SDL_SCANCODE_UP, 0, predicate_isPanelNormal, moveUp, tracker);

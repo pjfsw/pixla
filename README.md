@@ -19,6 +19,8 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - `Right Ctrl` - Play Pattern
 - `F9, F10` - Select instrument
 - `Half / Shift + Half` - Increase/Decrease stepping
+- `Backspace` - Delete previous row
+- `Insert` - Insert row at current position
 - `Del` - Delete note or command at cursor
 - `Shift + Del` - Delete note and command at cursor
 - `Alt + Left, Right` - Decrease/Increase pattern at position
