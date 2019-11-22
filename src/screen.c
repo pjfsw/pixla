@@ -567,8 +567,8 @@ void _screen_renderSelectedPatch() {
 
     if (screen->instrument != NULL) {
         Instrument *instrument = screen->instrument;
-        int adsrScaleX = 8;
-        int adsrScaleY = 30;
+        int adsrScaleX = 10;
+        int adsrScaleY = 24;
         int adsrOffset = 10;
 
         /* Attack */
@@ -578,7 +578,7 @@ void _screen_renderSelectedPatch() {
                 attackX, INSTRUMENT_Y+adsrOffset);
         /* Decay */
         int decayX = attackX + instrument->decay/adsrScaleX;
-        int sustainY = INSTRUMENT_Y + adsrScaleY +  adsrOffset - instrument->sustain/adsrScaleX - 1;
+        int sustainY = INSTRUMENT_Y + adsrOffset + adsrScaleY - instrument->sustain * adsrScaleY/128 -1;
         SDL_RenderDrawLine(screen->renderer,
                 attackX, INSTRUMENT_Y + adsrOffset,
                 decayX, sustainY);

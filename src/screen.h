@@ -35,8 +35,6 @@ void screen_print(int x, int y, char* msg, SDL_Color *color);
  * trackData a pointer to an array of tracks containing track data
  */
 void screen_setTrackData(Uint8 track, Track *trackData);
-
-void screen_setInstrumentSettings(SettingsComponent *instrumentSettings);
 /**
  * Set pointer to the song arrangement
  */

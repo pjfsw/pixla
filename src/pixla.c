@@ -547,15 +547,6 @@ void registerNote(Tracker *tracker, SDL_Scancode scancode, Sint8 note) {
     keyhandler_register(tracker->keyhandler, scancode, 0, predicate_isNotEditMode, playNote, tracker);
 }
 
-
-void loadSong(Tracker *tracker, SDL_Scancode scancode, SDL_Keymod keymod) {
-    song_clear(&tracker->song);
-    if (!persist_loadSongWithName(&tracker->song, "song.pxm")) {
-        screen_setStatusMessage("Could not open song.pxm");
-    }
-
-}
-
 void saveSong(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     if (persist_saveSongWithName((Song*)userData, "song.pxm")) {
         screen_setStatusMessage("Successfully saved song.pxm");
@@ -1064,7 +1055,7 @@ void createInstrumentSettings(Tracker *tracker) {
     settings_add(sc, "Decay", instrDecreaseDecay, instrIncreaseDecay, instrGetDecay, NULL, tracker, 0);
     settings_add(sc, "Sustain", instrDecreaseSustain, instrIncreaseSustain, instrGetSustain, NULL, tracker, 0);
     settings_add(sc, "Release", instrDecreaseRelease, instrIncreaseRelease, instrGetRelease, NULL, tracker, 0);
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < MAX_WAVESEGMENTS; i++) {
         char buf[10];
         sprintf(buf, "Wave %d", i+1);
         settings_add(sc, buf, instrDecreaseWave, instrIncreaseWave, instrGetWave, NULL, tracker , i);
@@ -1099,6 +1090,18 @@ Tracker *tracker_init() {
     return tracker;
 }
 
+void loadSong(Tracker *tracker, char *name) {
+    song_clear(&tracker->song);
+    if (!persist_loadSongWithName(&tracker->song, name)) {
+        screen_setStatusMessage("Could not open song.pxm");
+    } else {
+        screen_setStatusMessage("Successfully loaded song");
+    }
+    for (int i = 1; i < MAX_INSTRUMENTS; i++) {
+        synth_loadPatch(tracker->synth, i, &tracker->song.instruments[i]);
+    }
+
+}
 
 int main(int argc, char* args[]) {
     SDL_Event event;
@@ -1113,21 +1116,15 @@ int main(int argc, char* args[]) {
 
 
     screen_setInstrumentSettings(tracker->instrumentSettings);
+    defaultsettings_createInstruments(tracker->song.instruments);
 
-
-    song_clear(&tracker->song);
-    persist_loadSongWithName(&tracker->song, "song.pxm");
+    loadSong(tracker, "song.pxm");
 
     screen_setArrangementData(tracker->song.arrangement);
     gotoSongPos(tracker, 0);
 
     //synth_test();
     //return 0;
-
-    defaultsettings_createInstruments(tracker->song.instruments);
-    for (int i = 1; i < MAX_INSTRUMENTS; i++) {
-        synth_loadPatch(tracker->synth, i, &tracker->song.instruments[i]);
-    }
 
     SDL_Keymod keymod;
     bool quit = false;

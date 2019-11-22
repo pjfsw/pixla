@@ -231,7 +231,7 @@ void _synth_updateWaveform(Synth *synth, Uint8 channel) {
     Sint8 segment = 0;
 
     int ms = ch->playtime/SAMPLE_RATE_MS;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < MAX_WAVESEGMENTS; i++) {
         if (instr->waves[i].length == 0 || (ms < length + instr->waves[i].length)) {
             segment = i;
             break;

@@ -56,6 +56,7 @@ typedef struct {
     Uint8 dutyCycle;
 } Wavesegment;
 
+#define MAX_WAVESEGMENTS 3
 
 typedef struct {
     /**
@@ -77,7 +78,7 @@ typedef struct {
      * Time in some unit from sustain level to 0, started when note has been released
      */
     Sint8 release;
-    Wavesegment waves[3];
+    Wavesegment waves[MAX_WAVESEGMENTS];
 } Instrument;
 
 char *instrument_getWaveformName(Waveform waveform);
