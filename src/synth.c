@@ -78,6 +78,7 @@ typedef struct _Channel {
  * Definition of the synth
  */
 typedef struct _Synth {
+    FrequencyTable *frequencyTable;
     Uint16 sampleFreq;
     Sint8 lowpassSaw[256];
     Sint8 lowpassPulse[256];
@@ -271,8 +272,9 @@ void _synth_updateWaveform(Synth *synth, Uint8 channel) {
     }
 }
 
-Uint16 _synth_getSwipedFrequency(
-        Uint16 frequency,
+Uint32 _synth_getSwipedFrequency(
+        FrequencyTable *frequencyTable,
+        Uint32 scaledFrequency,
         Uint32 millis,
         Swipe *swipe
 ) {
@@ -289,44 +291,44 @@ Uint16 _synth_getSwipedFrequency(
         }
     }
     if (swipe->offset == 0) {
-        return frequency;
+        return scaledFrequency;
     }
 
-    Uint16 resultFreq = frequency * pow(2, (double)swipe->offset/(double)SWIPE_OFFSET_SCALE);
-    if (resultFreq > frequencyTable[FREQUENCY_TABLE_LENGTH-1]) {
-        resultFreq = frequencyTable[FREQUENCY_TABLE_LENGTH-1];
-    } else if (resultFreq < frequencyTable[0]) {
-        resultFreq = frequencyTable[0];
+    Uint32 resultFreq = scaledFrequency * pow(2, (double)swipe->offset/(double)SWIPE_OFFSET_SCALE);
+    if (resultFreq > frequencyTable_getHighestScaledFrequency(frequencyTable)) {
+        resultFreq = frequencyTable_getHighestScaledFrequency(frequencyTable);
+    } else if (resultFreq < frequencyTable_getLowestScaledFrequency(frequencyTable)) {
+        resultFreq = frequencyTable_getLowestScaledFrequency(frequencyTable);
     }
     return resultFreq;
 
 }
 
-Uint16 _synth_getModulatedFrequency(
+Uint32 _synth_getModulatedFrequency(
         Synth *synth,
-        Uint16 frequency,
+        Uint32 scaledFrequency,
         Uint32 playtime,
         Modulation *frequencyModulation
 ) {
 
     if (frequencyModulation->amplitude == 0) {
-        return frequency;
+        return scaledFrequency;
 
     }
     Sint16 modulationIndex =  synth->sineTable[(playtime * frequencyModulation->frequency / MODULATION_SCALER) & 0xFFFF];
     Sint16 scaledModulationIndex = frequencyModulation->amplitude * modulationIndex / 255;
 
-    return frequency * synth->halfToDoubleModulationTable[scaledModulationIndex+32768] / 16384;
+    return scaledFrequency * synth->halfToDoubleModulationTable[scaledModulationIndex+32768] / 16384;
 }
 
 void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
     Synth *synth = (Synth*)userdata;
     Sint16 *buffer = (Sint16*)stream;
+    FrequencyTable *ft = synth->frequencyTable;
 
     Sint16 scaler = 30000/synth->channels;
 
-    Uint16 voiceFreq = 0;
-
+    Uint32 waveFactor = 65536 / frequencyTable_getScaleFactor(ft);
 
     for (int i = 0; i < len/2; i++) {
         Sint32 output = 0;
@@ -343,15 +345,17 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
                 note = wav->noteModulation;
             }
 
+            Uint32 scaledFrequency = frequencyTable_getScaledValue(ft, note);
 
-            voiceFreq = _synth_getSwipedFrequency(
-                    frequencyTable[note % (sizeof(frequencyTable)/sizeof(Uint16))],
+            scaledFrequency = _synth_getSwipedFrequency(
+                    ft,
+                    scaledFrequency,
                     ch->playtime / SAMPLE_RATE_MS,
                     &wav->swipe);
 
-            voiceFreq = _synth_getModulatedFrequency(
+            scaledFrequency = _synth_getModulatedFrequency(
                     synth,
-                    voiceFreq,
+                    scaledFrequency,
                     ch->playtime,
                     &wav->frequencyModulation
                     );
@@ -374,7 +378,7 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
                 output += sample;
             }
 
-            wav->wavePos += (65536 * voiceFreq) / synth->sampleFreq;
+            wav->wavePos += waveFactor * scaledFrequency / synth->sampleFreq;
             ch->playtime++;
 
         }
@@ -449,6 +453,7 @@ Synth* synth_init(Uint8 channels) {
     synth->channels = channels;
     synth->channelData = calloc(channels, sizeof(Channel));
     synth->instruments = calloc(MAX_INSTRUMENTS, sizeof(Instrument));
+    synth->frequencyTable = frequencyTable_init(96, 128, -45);
 
     SDL_AudioSpec want;
     SDL_AudioSpec have;
@@ -493,6 +498,10 @@ void synth_close(Synth *synth) {
         if (NULL != synth->instruments) {
             free(synth->instruments);
             synth->instruments = NULL;
+        }
+        if (NULL != synth->frequencyTable) {
+            frequencyTable_close(synth->frequencyTable);
+            synth->frequencyTable = NULL;
         }
         free(synth);
         synth = NULL;

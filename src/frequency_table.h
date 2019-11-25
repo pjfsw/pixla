@@ -1,120 +1,47 @@
 #ifndef FREQUENCY_TABLE_H_
 #define FREQUENCY_TABLE_H_
 
-#define FREQUENCY_TABLE_LENGTH 96
+#include <SDL2/SDL.h>
 
-Uint16 frequencyTable[FREQUENCY_TABLE_LENGTH] = {
-         /* C0 -B0 */
-         33,
-         35,
-         37,
-         39,
-         41,
-         44,
-         46,
-         49,
-         52,
-         55,
-         58,
-         62,
-         /* C1-B1 */
-         65,
-         69,
-         73,
-         78,
-         82,
-         87,
-         93,
-         98,
-         103,
-        110,
-        117,
-        123,
-        /* C2-B2 */
-        131,
-        139,
-        147,
-        156,
-        165,
-        175,
-        185,
-        196,
-        207,
-        220,
-        233,
-        247,
-        /* C3-B3 */
-        261,
-        277,
-        294,
-        311,
-        330,
-        349,
-        370,
-        392,
-        415,
-        440,
-        466,
-        494,
+typedef struct _FrequencyTable FrequencyTable;
 
-        /* C4-B4 */
-        523,
-        554,
-        587,
-        622,
-        659,
-        698,
-        740,
-        784,
-        831,
-        880,
-        932,
-        988,
+/**
+ * Initalize a frequency table
+ *
+ * notes - The number of notes in the frequency table
+ * scaleFactor - The factor with which to scale the frequency to increase precision
+ * baseNote - The basenote for index 0 relative to 440 Hz (-45 means C0)
+ *
+ */
+FrequencyTable *frequencyTable_init(Uint8 notes, Uint8 scaleFactor, Sint8 baseNote);
 
-        /* C5-B5 */
-        1047,
-        1109,
-        1175,
-        1245,
-        1319,
-        1397,
-        1480,
-        1568,
-        1661,
-        1760,
-        1865,
-        1976,
+/**
+ * Close frequency table instance
+ */
+void frequencyTable_close(FrequencyTable *frequencyTable);
 
-        /* C6-B6 */
-        2093,
-        2217,
-        2349,
-        2489,
-        2637,
-        2794,
-        2960,
-        3136,
-        3322,
-        3520,
-        3729,
-        3951,
+/**
+ * Get scaler for frequency table values - the returned value should be divided
+ * with this value to get the actual frequency
+ */
+Uint8 frequencyTable_getScaleFactor(FrequencyTable *frequencyTable);
 
-        /* C7-B7 */
-        4186,
-        4435,
-        4699,
-        4978,
-        5274,
-        5588,
-        5920,
-        6272,
-        6645,
-        7040,
-        7459,
-        7902
-};
+/**
+ * Return frequency in its upscaled form. Should be transformed before being
+ * put to audio use or compared with real frequencies using the getScaleFactor()
+ * method or the getRealFrequency() convenience method.
+ */
+Uint32 frequencyTable_getScaledValue(FrequencyTable *frequencyTable, Uint8 note);
 
+/**
+ * Return the highest (upscaled) value in the frequency table
+ */
+Uint32 frequencyTable_getHighestScaledFrequency(FrequencyTable *frequencyTable);
 
+/**
+ * Return the lowest (upscaled) value in the frequency table
+ */
+Uint32 frequencyTable_getLowestScaledFrequency(FrequencyTable *frequencyTable);
 
 
 #endif /* FREQUENCY_TABLE_H_ */
