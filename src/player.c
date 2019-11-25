@@ -95,6 +95,7 @@ Uint32 _player_playCallback(Uint32 interval, void *param) {
             synth_pitchOffset(synth, channel ,0);
         }
     }
+    player->playbackTick = (player->playbackTick + 1) % 4;
     if (player->playbackTick == 0) {
         // TODO variable track length
         player->rowOffset = player->rowOffset + 1;
@@ -106,7 +107,6 @@ Uint32 _player_playCallback(Uint32 interval, void *param) {
             }
         }
     }
-    player->playbackTick = (player->playbackTick + 1) % 4;
     return interval;
 }
 
