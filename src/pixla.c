@@ -978,6 +978,18 @@ char* instrGetWaveformVolume(void *userData, int index) {
     }
 }
 
+bool isWaveActive(void *userData, int index) {
+    Tracker *tracker = (Tracker*)userData;
+    Instrument *instr = getCurrentInstrument(tracker);
+    for (int i = 0; i < MAX_WAVESEGMENTS; i++) {
+        if (instr->waves[i].length == 0 && i < index) {
+            return false;
+        }
+    }
+    return true;
+
+}
+
 
 void initNotes(Tracker *tracker) {
     memset(tracker->keyToNote, -1, sizeof(Sint8)*256);
@@ -1166,6 +1178,7 @@ void tracker_close(Tracker *tracker) {
     }
 }
 
+
 void createInstrumentSettings(Tracker *tracker) {
     tracker->instrumentSettings = settings_create();
     SettingsComponent *sc = tracker->instrumentSettings;
@@ -1177,13 +1190,13 @@ void createInstrumentSettings(Tracker *tracker) {
     for (int i = 0; i < MAX_WAVESEGMENTS; i++) {
         char buf[10];
         sprintf(buf, "Wave %d", i+1);
-        settings_add(sc, buf, instrDecreaseWave, instrIncreaseWave, instrGetWave, NULL, tracker , i);
-        settings_add(sc, " Length", instrDecreaseLength, instrIncreaseLength, instrGetLength, NULL, tracker, i);
-        settings_add(sc, " Note", instrDecreaseNote, instrIncreaseNote, instrGetNote, NULL, tracker, i);
-        settings_add(sc, " Duty Cycle", instrDecreaseDutyCycle, instrIncreaseDutyCycle, instrGetDutyCycle, NULL, tracker, i);
-        settings_add(sc, " PWM", instrDecreasePWM, instrIncreasePWM, instrGetPWM, NULL, tracker, i);
-        settings_add(sc, " Filter", instrDecreaseFilter, instrIncreaseFilter, instrGetFilter, NULL, tracker, i);
-        settings_add(sc, " Volume", instrDecreaseWaveformVolume, instrIncreaseWaveformVolume, instrGetWaveformVolume, NULL, tracker, i);
+        settings_add(sc, buf, instrDecreaseWave, instrIncreaseWave, instrGetWave, isWaveActive, tracker , i);
+        settings_add(sc, " Length", instrDecreaseLength, instrIncreaseLength, instrGetLength, isWaveActive, tracker, i);
+        settings_add(sc, " Note", instrDecreaseNote, instrIncreaseNote, instrGetNote, isWaveActive, tracker, i);
+        settings_add(sc, " Duty Cycle", instrDecreaseDutyCycle, instrIncreaseDutyCycle, instrGetDutyCycle, isWaveActive, tracker, i);
+        settings_add(sc, " PWM", instrDecreasePWM, instrIncreasePWM, instrGetPWM, isWaveActive, tracker, i);
+        settings_add(sc, " Filter", instrDecreaseFilter, instrIncreaseFilter, instrGetFilter, isWaveActive, tracker, i);
+        settings_add(sc, " Volume", instrDecreaseWaveformVolume, instrIncreaseWaveformVolume, instrGetWaveformVolume, isWaveActive, tracker, i);
     }
 }
 

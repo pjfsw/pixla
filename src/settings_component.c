@@ -74,7 +74,11 @@ void settings_add(
 
 }
 
-void settings_next(SettingsComponent *settings) {
+bool _settings_isActive(SettingsItem *setting) {
+    return setting->isActiveFunc == NULL || setting->isActiveFunc(setting->userData, setting->userIndex);
+}
+
+void _settings_next(SettingsComponent *settings) {
     if (settings->currentSetting == settings->settingCount -1) {
         settings->currentSetting = 0;
     } else {
@@ -82,7 +86,13 @@ void settings_next(SettingsComponent *settings) {
     }
 }
 
-void settings_prev(SettingsComponent *settings) {
+void settings_next(SettingsComponent *settings) {
+    do {
+        _settings_next(settings);
+    } while (!_settings_isActive(settings->settings[settings->currentSetting]));
+}
+
+void _settings_prev(SettingsComponent *settings) {
     if (settings->currentSetting == 0) {
         settings->currentSetting = settings->settingCount - 1;
     } else {
@@ -90,19 +100,33 @@ void settings_prev(SettingsComponent *settings) {
     }
 }
 
+void settings_prev(SettingsComponent *settings) {
+    do {
+        _settings_prev(settings);
+    } while (!_settings_isActive(settings->settings[settings->currentSetting]));
+}
+
 void settings_increase(SettingsComponent *settings) {
     SettingsItem *setting = settings->settings[settings->currentSetting];
-    setting->increaseFunc(setting->userData, setting->userIndex);
+    if (_settings_isActive(setting)) {
+        setting->increaseFunc(setting->userData, setting->userIndex);
+    }
 
 }
 
 void settings_decrease(SettingsComponent *settings) {
     SettingsItem *setting = settings->settings[settings->currentSetting];
-    setting->decreaseFunc(setting->userData, setting->userIndex);
+    if (_settings_isActive(setting)) {
+        setting->decreaseFunc(setting->userData, setting->userIndex);
+    }
 }
 
 void settings_render(SettingsComponent *settings, SDL_Renderer *renderer, int x, int y, int maxRows) {
     SDL_Color color = {.r = 255, .g=255, .b=255, .a=255};
+
+    while (!_settings_isActive(settings->settings[settings->currentSetting])) {
+        _settings_prev(settings);
+    }
 
     if (settings->currentSetting < settings->rowOffset) {
         settings->rowOffset = settings->currentSetting;
@@ -119,6 +143,9 @@ void settings_render(SettingsComponent *settings, SDL_Renderer *renderer, int x,
 
     for (int row = 0; row < rowsToRender; row++) {
         SettingsItem *item = settings->settings[settings->rowOffset+row];
+        if (item->isActiveFunc != NULL && !item->isActiveFunc(item->userData, item->userIndex)) {
+            continue;
+        }
         char *label = item->label;
         char *value = item->valueGetter(item->userData, item->userIndex);
         char cursor = settings->rowOffset+row == settings->currentSetting ? '>' : ' ';
