@@ -48,7 +48,7 @@ typedef struct {
     /**
      * Pulse width modulation in this segment. Only relevant for PWM waveform
      */
-    Uint8 pwm;
+    Sint8 pwm;
 
     /**
      * Start duty cycle in this segment. Only relevant for PWM waveform
@@ -59,6 +59,9 @@ typedef struct {
      * Lowpass filter value, 0-127, 127 - no filter, 0 - 100% filter
      */
     Sint8 filter;
+
+    /** Relative volume, 0-127 */
+    Sint8 volume;
 
 } Wavesegment;
 

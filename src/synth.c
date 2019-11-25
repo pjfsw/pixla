@@ -51,6 +51,7 @@ typedef struct {
     Sint8 pwm;
     Uint8 currentSegment;
     Sint8 filter;
+    Sint8 volume;
     Swipe swipe;
     Modulation frequencyModulation;
     Sint8 noteModulation;
@@ -204,7 +205,7 @@ Sint8 _synth_getSampleFromArray(Channel *ch) {
 }
 
 Sint8 _synth_getPulseAtPos(Uint16 dutyCycle, Uint16 wavePos) {
-    return wavePos > dutyCycle ? 119 : -120;
+    return wavePos > dutyCycle ? 127 : -128;
 }
 
 Sint8 _synth_getPulse(Channel *ch) {
@@ -261,6 +262,7 @@ void _synth_updateWaveform(Synth *synth, Uint8 channel) {
     }
     ch->waveData.noteModulation = waveData->note;
     ch->waveData.filter = waveData->filter;
+    ch->waveData.volume = waveData->volume == 0 ? 127 : waveData->volume;
 
     switch (waveform) {
     case LOWPASS_SAW:
@@ -384,7 +386,7 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
             if (!ch->mute && amp->adsr != OFF) {
                 /** Sample func 0-127 */
                 /** Amplitude 0-32767 */
-                Sint32 sample = wav->sampleFunc(ch) * amp->amplitude/128;
+                Sint32 sample = wav->sampleFunc(ch) * wav->volume * amp->amplitude/16384;
                 output += sample;
             }
 

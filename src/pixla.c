@@ -42,11 +42,12 @@ typedef struct {
     char decay[6];
     char sustain[6];
     char release[6];
-    char note[3][6];
-    char length[3][6];
-    char dutyCycle[3][6];
-    char pwm[3][6];
-    char filter[3][6];
+    char note[MAX_WAVESEGMENTS][6];
+    char length[MAX_WAVESEGMENTS][6];
+    char dutyCycle[MAX_WAVESEGMENTS][6];
+    char pwm[MAX_WAVESEGMENTS][6];
+    char filter[MAX_WAVESEGMENTS][6];
+    char waveVolume[MAX_WAVESEGMENTS][6];
 } InstrumentSettingsData;
 
 typedef struct _Tracker {
@@ -916,7 +917,7 @@ void instrDecreasePWM(void *userData, int index) {
 
 void instrIncreasePWM(void *userData, int index) {
     Instrument *instr = getCurrentInstrument((Tracker*)userData);
-    if (instr->waves[index].pwm < 255) {
+    if (instr->waves[index].pwm < 127) {
         instr->waves[index].pwm++;
     }
 }
@@ -950,6 +951,33 @@ char* instrGetFilter(void *userData, int index) {
     sprintf(tracker->instrumentSettingsData.filter[index], "%d", instr->waves[index].filter);
     return tracker->instrumentSettingsData.filter[index];
 }
+
+void instrDecreaseWaveformVolume(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->waves[index].volume > 0) {
+        instr->waves[index].volume--;
+    }
+}
+
+void instrIncreaseWaveformVolume(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->waves[index].volume < 127) {
+        instr->waves[index].volume++;
+    }
+}
+
+char* instrGetWaveformVolume(void *userData, int index) {
+    Tracker *tracker = (Tracker*)userData;
+    Instrument *instr = getCurrentInstrument(tracker);
+
+    if (instr->waves[index].volume == 0) {
+        return "MAX";
+    } else {
+        sprintf(tracker->instrumentSettingsData.waveVolume[index], "%d", instr->waves[index].volume);
+        return tracker->instrumentSettingsData.waveVolume[index];
+    }
+}
+
 
 void initNotes(Tracker *tracker) {
     memset(tracker->keyToNote, -1, sizeof(Sint8)*256);
@@ -1155,6 +1183,7 @@ void createInstrumentSettings(Tracker *tracker) {
         settings_add(sc, " Duty Cycle", instrDecreaseDutyCycle, instrIncreaseDutyCycle, instrGetDutyCycle, NULL, tracker, i);
         settings_add(sc, " PWM", instrDecreasePWM, instrIncreasePWM, instrGetPWM, NULL, tracker, i);
         settings_add(sc, " Filter", instrDecreaseFilter, instrIncreaseFilter, instrGetFilter, NULL, tracker, i);
+        settings_add(sc, " Volume", instrDecreaseWaveformVolume, instrIncreaseWaveformVolume, instrGetWaveformVolume, NULL, tracker, i);
     }
 }
 

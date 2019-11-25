@@ -119,6 +119,13 @@ bool persist_loadSongWithName(Song *song, char *name) {
                     song->instruments[instr].waves[wave].filter = value;
                 }
             }
+            if (strcmp(parameter, "wvol") == 0) {
+                int instr = address / 256;
+                int wave = address & 255;
+                if (wave < MAX_WAVESEGMENTS) {
+                    song->instruments[instr].waves[wave].volume = value;
+                }
+            }
 
 
         }
@@ -209,6 +216,10 @@ bool persist_saveSongWithName(Song *song, char* name) {
                 if (ws->filter != 0) {
                     fprintf(f, "wfilter %04x %04x\n", patchByte | wav, ws->filter);
                 }
+                if (ws->volume != 0) {
+                    fprintf(f, "wvol %04x %04x\n", patchByte | wav, ws->volume);
+                }
+
             }
 
         }
