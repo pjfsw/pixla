@@ -30,10 +30,10 @@ http://coppershade.org/helpers/DOCS/protracker23.readme.txt
 
 #define CHANNELS TRACKS_PER_PATTERN
 #define SUBCOLUMNS 4
-#define MUTE_SC_1 SDL_SCANCODE_F1
-#define MUTE_SC_2 SDL_SCANCODE_F2
-#define MUTE_SC_3 SDL_SCANCODE_F3
-#define MUTE_SC_4 SDL_SCANCODE_F4
+#define MUTE_SC_1 SDL_SCANCODE_F5
+#define MUTE_SC_2 SDL_SCANCODE_F6
+#define MUTE_SC_3 SDL_SCANCODE_F7
+#define MUTE_SC_4 SDL_SCANCODE_F8
 
 typedef struct _Tracker Tracker;
 
@@ -476,6 +476,50 @@ void nextOctave(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     tracker->octave++;
     screen_setOctave(tracker->octave);
 }
+
+void _transposeTrackDown(Track *track) {
+    for (int i = 0; i < TRACK_LENGTH; i++) {
+        Note *note = &track->notes[i];
+        if (note->note > 0 && note->note<96) {
+            note->note--;
+        }
+    }
+}
+
+void _transposeTrackUp(Track *track) {
+    for (int i = 0; i < TRACK_LENGTH; i++) {
+        Note *note = &track->notes[i];
+        if (note->note < 96) {
+            note->note++;
+        }
+    }
+}
+
+void transposeTrackDown(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    _transposeTrackDown(getCurrentTrack(tracker));
+}
+
+void transposeTrackUp(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    _transposeTrackUp(getCurrentTrack(tracker));
+}
+
+void transposePatternDown(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    for (int i = 0; i < CHANNELS; i++) {
+        _transposeTrackDown(&getCurrentPattern(tracker)->tracks[i]);
+    }
+}
+
+void transposePatternUp(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    for (int i = 0; i < CHANNELS; i++) {
+        _transposeTrackUp(&getCurrentPattern(tracker)->tracks[i]);
+    }
+}
+
+
 
 /*
  * Track clipboard operations
@@ -1118,6 +1162,12 @@ void initKeyMappings(Tracker *tracker) {
 
     keyhandler_register(kh, SDL_SCANCODE_F1, 0, NULL, previousOctave, tracker);
     keyhandler_register(kh, SDL_SCANCODE_F2, 0, NULL, nextOctave, tracker);
+
+    keyhandler_register(kh, SDL_SCANCODE_F1, KM_SHIFT, NULL, transposeTrackDown, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_F2, KM_SHIFT, NULL, transposeTrackUp, tracker);
+
+    keyhandler_register(kh, SDL_SCANCODE_F1, KM_ALT, NULL, transposePatternDown, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_F2, KM_ALT, NULL, transposePatternUp, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_F9, 0, NULL, previousPatch, tracker);
     keyhandler_register(kh, SDL_SCANCODE_F10, 0, NULL ,  nextPatch, tracker);

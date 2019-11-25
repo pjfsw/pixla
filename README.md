@@ -12,8 +12,10 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 
 ## Keys
 
-- `Shift + F1,F2,F3,F4` - Mute channels 1-4
+- `Shift + F5,F6,F7,F8` - Mute channels 1-4
 - `F1, F2` - Decrease/increase octave in editor
+- `Shift + F1, F2` - Transpose track down/up
+- `Alt + F1, F2` - Transpose pattern down/up
 - `Space` - Stop/Edit
 - `Right Ctrl` - Play Pattern
 - `F9, F10` - Select instrument
@@ -59,4 +61,5 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
     - = 00 no change
     - < 00 subtract this from current note value, effectively adding the absolute value to the played note
     - \> 00 play the specified note regardless of the note in the tracker
-
+  - A relative volume, values 0 = MAX/default, 1-127 = relative value
+  - Filter
