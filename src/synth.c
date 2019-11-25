@@ -50,6 +50,7 @@ typedef struct {
     Uint16 dutyCycle;
     Sint8 pwm;
     Uint8 currentSegment;
+    Sint8 filter;
     Swipe swipe;
     Modulation frequencyModulation;
     Sint8 noteModulation;
@@ -72,6 +73,7 @@ typedef struct _Channel {
     WaveData waveData;
     AmpData ampData;
     bool mute;
+    Sint8 mean;
 } Channel;
 
 /*
@@ -207,11 +209,19 @@ Sint8 _synth_getPulseAtPos(Uint16 dutyCycle, Uint16 wavePos) {
 
 Sint8 _synth_getPulse(Channel *ch) {
     Uint16 dutyCycle = ch->waveData.dutyCycle;
-    return _synth_getPulseAtPos(dutyCycle, ch->waveData.wavePos);
+    Sint8 real =  _synth_getPulseAtPos(dutyCycle, ch->waveData.wavePos);
+
+    ch->mean = (127-ch->waveData.filter) * real / 127 + ch->waveData.filter * ch->mean / 127;
+    return ch->mean;
+
 }
 
 Sint8 _synth_getNoise(Channel *ch) {
-    return rand() >> 24;
+    Sint8 real = rand() >> 24;
+    Uint8 alpha = 95;
+
+    ch->mean = alpha * real / 256 + (255-alpha) * ch->mean / 256;
+    return ch->mean;
 }
 
 Sint8 _synth_getTriangle(Channel *ch) {
@@ -250,7 +260,7 @@ void _synth_updateWaveform(Synth *synth, Uint8 channel) {
         ch->waveData.dutyCycle = waveData->dutyCycle << 8;
     }
     ch->waveData.noteModulation = waveData->note;
-
+    ch->waveData.filter = waveData->filter;
 
     switch (waveform) {
     case LOWPASS_SAW:

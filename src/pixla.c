@@ -46,6 +46,7 @@ typedef struct {
     char length[3][6];
     char dutyCycle[3][6];
     char pwm[3][6];
+    char filter[3][6];
 } InstrumentSettingsData;
 
 typedef struct _Tracker {
@@ -928,6 +929,28 @@ char* instrGetPWM(void *userData, int index) {
     return tracker->instrumentSettingsData.pwm[index];
 }
 
+void instrDecreaseFilter(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->waves[index].filter > 0) {
+        instr->waves[index].filter--;
+    }
+}
+
+void instrIncreaseFilter(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->waves[index].filter < 127) {
+        instr->waves[index].filter++;
+    }
+}
+
+char* instrGetFilter(void *userData, int index) {
+    Tracker *tracker = (Tracker*)userData;
+    Instrument *instr = getCurrentInstrument(tracker);
+
+    sprintf(tracker->instrumentSettingsData.filter[index], "%d", instr->waves[index].filter);
+    return tracker->instrumentSettingsData.filter[index];
+}
+
 void initNotes(Tracker *tracker) {
     memset(tracker->keyToNote, -1, sizeof(Sint8)*256);
     registerNote(tracker, SDL_SCANCODE_Z, 0);
@@ -1131,6 +1154,7 @@ void createInstrumentSettings(Tracker *tracker) {
         settings_add(sc, " Note", instrDecreaseNote, instrIncreaseNote, instrGetNote, NULL, tracker, i);
         settings_add(sc, " Duty Cycle", instrDecreaseDutyCycle, instrIncreaseDutyCycle, instrGetDutyCycle, NULL, tracker, i);
         settings_add(sc, " PWM", instrDecreasePWM, instrIncreasePWM, instrGetPWM, NULL, tracker, i);
+        settings_add(sc, " Filter", instrDecreaseFilter, instrIncreaseFilter, instrGetFilter, NULL, tracker, i);
     }
 }
 

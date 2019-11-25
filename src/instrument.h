@@ -54,6 +54,12 @@ typedef struct {
      * Start duty cycle in this segment. Only relevant for PWM waveform
      */
     Uint8 dutyCycle;
+
+    /**
+     * Lowpass filter value, 0-127, 127 - no filter, 0 - 100% filter
+     */
+    Sint8 filter;
+
 } Wavesegment;
 
 #define MAX_WAVESEGMENTS 3
