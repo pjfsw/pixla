@@ -665,7 +665,8 @@ void saveSong(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
 }
 
 void resetChannelParams(Synth *synth, Uint8 channel) {
-    synth_pitchOffset(synth, channel, 0);
+    //synth_pitchOffset(synth, channel, 0);
+    synth_pitchModulation(synth, channel, 0, NULL, 0);
     synth_frequencyModulation(synth, channel, 0,0);
 }
 

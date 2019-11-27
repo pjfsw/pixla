@@ -41,6 +41,12 @@ typedef struct {
     Uint8 amplitude;
 } Modulation;
 
+typedef struct {
+    Uint8 speed;
+    Sint8 notes[256];
+    Uint8 notesLength;
+} PitchModulation;
+
 #define FREQ_SWIPE_NOTE_SCALER 32
 
 typedef struct {
@@ -70,11 +76,11 @@ typedef struct _Channel {
     Uint32 playtime;
     Uint8 patch;
     Sint8 note;
-    Sint8 noteOffset;
     WaveData waveData;
     AmpData ampData;
     bool mute;
     Sint8 mean;
+    PitchModulation pitchModulation;
 } Channel;
 
 /*
@@ -350,11 +356,14 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
             WaveData *wav = &ch->waveData;
             AmpData *amp = &ch->ampData;
 
-            Sint8 note = ch->note+ch->noteOffset;
+            Sint8 note = ch->note;
             if (wav->noteModulation < 0) {
                 note -= wav->noteModulation;
             } else if (wav->noteModulation > 0) {
                 note = wav->noteModulation;
+            }
+            if (ch->pitchModulation.notesLength > 0 && ch->pitchModulation.speed > 0) {
+                note += ch->pitchModulation.notes[(ch->playtime/(SAMPLE_RATE_MS * ch->pitchModulation.speed) )% ch->pitchModulation.notesLength];
             }
 
             Uint32 scaledFrequency = frequencyTable_getScaledValue(ft, note);
@@ -533,12 +542,16 @@ void _synth_updateAmpData(AmpData *amp) {
     amp->adsrTimer = 0;
 }
 
-void synth_pitchOffset(Synth *synth, Uint8 channel, Sint8 offset) {
+void synth_pitchModulation(Synth *synth, Uint8 channel, Uint16 speed, Sint8 *relativeNotes, Uint8 notesLength) {
     if (synth == NULL || channel >= synth->channels) {
         return;
     }
-    synth->channelData[channel].noteOffset = offset;
+    synth->channelData[channel].pitchModulation.speed = speed;
+    synth->channelData[channel].pitchModulation.notesLength = notesLength;
+    memcpy(synth->channelData[channel].pitchModulation.notes, relativeNotes, notesLength);
+
 }
+
 
 void synth_notePitch(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note) {
     if (synth == NULL || channel >= synth->channels) {

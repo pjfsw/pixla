@@ -27,8 +27,8 @@ void synth_setPwm(Synth* synth, Uint8 channel, Sint8 dutyCycle, Sint8 pwm);
 
 void synth_notePitch(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note);
 
-/** Convenience function to relatively alter pitch */
-void synth_pitchOffset(Synth *synth, Uint8 channel, Sint8 offset);
+/** Create pitch modulation effects (arpeggio) */
+void synth_pitchModulation(Synth *synth, Uint8 channel, Uint16 speed, Sint8 *notes, Uint8 notesLength);
 
 void synth_noteOff(Synth *synth, Uint8 channel);
 
