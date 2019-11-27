@@ -9,6 +9,7 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - `2xy` - Slide down, max 4 octaves down from note value then sliding stops
 - `3xy` - Tone portamento, only xy == 00 supported (change pitch)
 - `4xy` - Vibrato, x = speed, y = depth
+- 'Fxx' - Set tempo, in 2 * BPM values (i.e. 0x40 = 64 = 128 BPM)
 
 ## Keys
 
@@ -30,6 +31,12 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - `Alt + Insert`- Insert a pattern at position
 - `Shift + I` - Activate instrument editor mode
 - `Shift + O` - Activate normal mode
+- `Shift + X` - Cut track
+- `Shift + C` - Copy track
+- `Shift + V` - Paste track
+- `Alt + X` - Cut pattern
+- `Alt + C` - Copy pattern
+- `Alt + V` - Paste pattern
 
 ### Instrument editor mode
 
@@ -38,12 +45,6 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 
 ### Edit mode
 
-- `Shift + X` - Cut track
-- `Shift + C` - Copy track
-- `Shift + V` - Paste track
-- `Alt + X` - Cut pattern
-- `Alt + C` - Copy pattern
-- `Alt + V` - Paste pattern
 - `Backspace` - Delete previous row
 - `Insert` - Insert row at current position
 - `Del` - Delete note or command at cursor

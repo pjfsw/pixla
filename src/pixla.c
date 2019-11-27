@@ -1124,13 +1124,13 @@ void initKeyMappings(Tracker *tracker) {
     keyhandler_register(kh, MUTE_SC_3, KM_SHIFT, NULL, muteTrack, tracker);
     keyhandler_register(kh, MUTE_SC_4, KM_SHIFT, NULL, muteTrack, tracker);
 
-    keyhandler_register(kh, SDL_SCANCODE_X, KM_SHIFT, predicate_isEditMode, cutTrack, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_C, KM_SHIFT, predicate_isEditMode, copyTrack, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_V, KM_SHIFT, predicate_isEditMode, pasteTrack, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_X, KM_SHIFT, NULL, cutTrack, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_C, KM_SHIFT, NULL, copyTrack, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_V, KM_SHIFT, NULL, pasteTrack, tracker);
 
-    keyhandler_register(kh, SDL_SCANCODE_X, KM_ALT, predicate_isEditMode, cutPattern, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_C, KM_ALT, predicate_isEditMode, copyPattern, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_V, KM_ALT, predicate_isEditMode, pastePattern, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_X, KM_ALT, NULL, cutPattern, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_C, KM_ALT, NULL, copyPattern, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_V, KM_ALT, NULL, pastePattern, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_DELETE, KM_SHIFT, predicate_isEditMode, deleteNoteAndCommand, tracker);
 
@@ -1252,7 +1252,7 @@ void createInstrumentSettings(Tracker *tracker) {
 
 Tracker *tracker_init() {
     Tracker *tracker = calloc(1, sizeof(Tracker));
-    tracker->song.bpm = 118;
+    tracker->song.bpm = 59;
     tracker->stepping = 1;
     tracker->patch = 1;
 

@@ -13,6 +13,7 @@
 #define EFFECT_SLIDE_DOWN 0x2
 #define EFFECT_TONE_PORTAMENTO 0x3
 #define EFFECT_VIBRATO 0x4
+#define EFFECT_TEMPO 0xF
 
 typedef struct _Player {
     Synth *synth;
@@ -22,11 +23,16 @@ typedef struct _Player {
     Uint8 rowOffset;
     Uint8 playbackTick;
     Uint8 channels;
+    Uint8 bpm;
 } Player;
 
 void _player_parameterToNibbles(Uint8 parameter, Uint8 *left, Uint8 *right) {
     *left = (parameter >> 4) & 0xF;
     *right = parameter & 0xF;
+}
+
+Uint32 _player_getDelayFromBpm(int bpm) {
+    return 7500/bpm;
 }
 
 Uint32 _player_playCallback(Uint32 interval, void *param) {
@@ -82,6 +88,9 @@ Uint32 _player_playCallback(Uint32 interval, void *param) {
             } else {
                 synth_pitchGlideStop(synth, channel);
             }
+            if (effect == EFFECT_TEMPO && parameter > 0) {
+                player->bpm = parameter;
+            }
         }
         /* Arpeggio */
         bool isArpeggio = (effect == EFFECT_ARPEGGIO) && parameter > 0;
@@ -107,7 +116,7 @@ Uint32 _player_playCallback(Uint32 interval, void *param) {
             }
         }
     }
-    return interval;
+    return _player_getDelayFromBpm(player->bpm)/4;
 }
 
 
@@ -126,16 +135,13 @@ void player_close(Player *player) {
     }
 }
 
-Uint32 _player_getDelayFromBpm(int bpm) {
-    return 15000/bpm;
-}
-
 void player_start(Player *player, Song *song, Uint16 songPos) {
     player_stop(player);
     player->song = song;
     player->songPos = songPos;
     player->rowOffset = 0;
     player->playbackTick = 0;
+    player->bpm = song->bpm;
     player->timerId = SDL_AddTimer(_player_getDelayFromBpm(song->bpm)/4, _player_playCallback, player);
 }
 
