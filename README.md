@@ -56,7 +56,7 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - Attack/Decay/Sustain/Release configurable per patch
 - Up to three wave segments per patch
 - Each wave segment has the following properties
-  - A waveform (Lowpass Pulse, Lowpass Saw, Pulse with PWM, White Noise, Triangle)
+  - A waveform (Lowpass Pulse, Lowpass Saw, Pulse with PWM, White Noise, Triangle, Ring Modulated Pulse)
   - A length in some time uint, or 0 to indicate this is the last segment
   - A starting duty cycle (for PWM)
   - Pulse width modulation speed
@@ -66,3 +66,4 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
     - \> 00 play the specified note regardless of the note in the tracker
   - A relative volume, values 0 = MAX/default, 1-127 = relative value
   - Filter
+  - Ring modulation carrier frequency or 0 to use channel 0 frequency (when wave = Ring modulation)
