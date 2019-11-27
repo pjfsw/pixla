@@ -34,6 +34,8 @@ void synth_noteOff(Synth *synth, Uint8 channel);
 
 void synth_frequencyModulation(Synth *synth, Uint8 channel, Uint8 frequency, Uint8 amplitude);
 
+void synth_amplitudeModulation(Synth *synth, Uint8 channel, Uint8 frequency, Uint8 amplitude);
+
 /**
  * Start frequency gliding. Stop gliding by setting speed to 0 or call pitchGlideStop. Offset is reset with notePitch or noteTrigger
  */

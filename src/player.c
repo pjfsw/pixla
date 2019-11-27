@@ -5,6 +5,8 @@
 #include "note.h"
 #include "synth.h"
 
+#define PLAYER_AMP_MODULATION_AMP_SCALING 16
+#define PLAYER_AMP_MODULATION_FREQ_SCALING 2
 #define PLAYER_MODULATION_AMP_SCALING 3
 #define PLAYER_MODULATION_FREQ_SCALING 16
 
@@ -13,6 +15,7 @@
 #define EFFECT_SLIDE_DOWN 0x2
 #define EFFECT_TONE_PORTAMENTO 0x3
 #define EFFECT_VIBRATO 0x4
+#define EFFECT_TREMOLO 0x7
 #define EFFECT_PATTERN_BREAK 0xD
 #define EFFECT_TEMPO 0xF
 
@@ -89,6 +92,20 @@ Uint32 _player_playCallback(Uint32 interval, void *param) {
             }
         } else {
             synth_frequencyModulation(synth, channel, 0, 0);
+        }
+        if (effect == EFFECT_TREMOLO) {
+            Uint8 freq, amp;
+            _player_parameterToNibbles(parameter, &freq, &amp);
+
+            if (freq > 0 || amp > 0) {
+                synth_amplitudeModulation(
+                        synth, channel,
+                        PLAYER_AMP_MODULATION_FREQ_SCALING * freq,
+                        PLAYER_AMP_MODULATION_AMP_SCALING * amp
+                        );
+            }
+        } else {
+            synth_amplitudeModulation(synth, channel, 0, 0);
         }
         if (effect == EFFECT_SLIDE_DOWN) {
             if (parameter != 0) {

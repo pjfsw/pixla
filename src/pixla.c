@@ -669,6 +669,7 @@ void resetChannelParams(Synth *synth, Uint8 channel) {
     //synth_pitchOffset(synth, channel, 0);
     synth_pitchModulation(synth, channel, 0, NULL, 0);
     synth_frequencyModulation(synth, channel, 0,0);
+    synth_amplitudeModulation(synth, channel, 0, 0);
 }
 
 void startEditing(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -695,6 +696,7 @@ void stopPlayback(Tracker *tracker) {
     for (int i = 0; i < CHANNELS; i++) {
         synth_pitchGlideReset(tracker->synth, i);
         synth_frequencyModulation(tracker->synth, i, 0, 0);
+        synth_amplitudeModulation(tracker->synth, i, 0, 0);
         synth_noteRelease(tracker->synth, i);
     }
 

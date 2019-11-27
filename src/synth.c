@@ -62,13 +62,13 @@ typedef struct {
     Sint8 filter;
     Sint8 volume;
     Swipe swipe;
-    Swipe ringModSwipe;
     Modulation frequencyModulation;
     Sint8 noteModulation;
 } WaveData;
 
 
 typedef struct {
+    Modulation amplitudeModulation;
     Sint16 amplitude;
     Uint16 adsrTimer;
     Adsr adsr;
@@ -204,8 +204,25 @@ void _synth_updateAdsr(Synth *synth, Channel *ch) {
         }
         break;
     case OFF:
-    case SUSTAIN:
         break;
+    case SUSTAIN:
+        amp->amplitude = instr->sustain << 8;
+        break;
+    }
+    if (amp->adsr != OFF && amp->amplitudeModulation.amplitude > 0) {
+        Uint16 sinePos = amp->amplitudeModulation.frequency * 65536 * ch->playtime / SAMPLE_RATE;
+
+
+        Uint16 scalePos = 32768 + amp->amplitudeModulation.amplitude * synth->sineTable[sinePos] / 256;
+        Sint32 ampmod = amp->amplitude  * synth->halfToDoubleModulationTable[scalePos] / 16384;
+        //Sint32 ampmod =  amp->amplitude + amp->amplitudeModulation.amplitude * amp->amplitude * synth->sineTable[pos] / 400000;
+        if (ampmod < 0) {
+            amp->amplitude = 0;
+        } else if (ampmod > 32767) {
+            amp->amplitude = 32767;
+        } else {
+            amp->amplitude = ampmod;
+        }
     }
 }
 
@@ -643,6 +660,14 @@ void synth_frequencyModulation(Synth *synth, Uint8 channel, Uint8 frequency, Uin
     }
     synth->channelData[channel].waveData.frequencyModulation.frequency = frequency;
     synth->channelData[channel].waveData.frequencyModulation.amplitude = amplitude;
+}
+
+void synth_amplitudeModulation(Synth *synth, Uint8 channel, Uint8 frequency, Uint8 amplitude) {
+    if (synth == NULL || channel >= synth->channels) {
+        return;
+    }
+    synth->channelData[channel].ampData.amplitudeModulation.frequency = frequency;
+    synth->channelData[channel].ampData.amplitudeModulation.amplitude = amplitude;
 }
 
 void synth_pitchGlideUp(Synth *synth, Uint8 channel, Uint8 speed) {
