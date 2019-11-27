@@ -1155,7 +1155,7 @@ void initKeyMappings(Tracker *tracker) {
     keyhandler_register(kh, SDL_SCANCODE_BACKSPACE, 0, predicate_isEditMode, deletePreviousNote, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_NONUSBACKSLASH, 0, predicate_isEditOnNoteColumn, insertNoteOff, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_RETURN, 0, predicate_isEditOnNoteColumn, insertNoteOff, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_RETURN, 0, predicate_isEditOnNoteColumn, deleteNoteOrCommand, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_NONUSBACKSLASH, 0, predicate_isNotEditMode, playNoteOff, tracker);
     keyhandler_register(kh, SDL_SCANCODE_RETURN, 0, predicate_isNotEditMode, playNoteOff, tracker);
@@ -1325,7 +1325,7 @@ int main(int argc, char* args[]) {
             case SDL_KEYDOWN:
                 keymod = SDL_GetModState();
                 keyhandler_handle(tracker->keyhandler, event.key.keysym.scancode, keymod);
-                printf("Key %d\n", event.key.keysym.scancode);
+                //printf("Key %d\n", event.key.keysym.scancode);
 
                 break;
             case SDL_KEYUP:

@@ -436,7 +436,7 @@ void _screen_renderColumns() {
                     sprintf(strbuf, "%02X", note.patch);
                     screen_print(getColumnOffset(x)+32, screenY, strbuf, textColor);
 
-                    sprintf(strbuf, "%03X", note.command % 0xFFF);
+                    sprintf(strbuf, "%03X", note.command & 0xFFF);
                     screen_print(getColumnOffset(x)+56, screenY, strbuf, textColor);
                 }
             }
