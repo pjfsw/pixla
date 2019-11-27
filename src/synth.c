@@ -214,21 +214,17 @@ Sint8 _synth_getPulseAtPos(Uint16 dutyCycle, Uint16 wavePos) {
     return wavePos > dutyCycle ? 127 : -128;
 }
 
+Sint8 _synth_getMean(Channel *ch, Sint8 real) {
+    return (127-ch->waveData.filter) * real / 127 + ch->waveData.filter * ch->mean / 127;
+}
+
 Sint8 _synth_getPulse(Channel *ch) {
     Uint16 dutyCycle = ch->waveData.dutyCycle;
-    Sint8 real =  _synth_getPulseAtPos(dutyCycle, ch->waveData.wavePos);
-
-    ch->mean = (127-ch->waveData.filter) * real / 127 + ch->waveData.filter * ch->mean / 127;
-    return ch->mean;
-
+    return  _synth_getPulseAtPos(dutyCycle, ch->waveData.wavePos);
 }
 
 Sint8 _synth_getNoise(Channel *ch) {
-    Sint8 real = rand() >> 24;
-    Uint8 alpha = 95;
-
-    ch->mean = alpha * real / 256 + (255-alpha) * ch->mean / 256;
-    return ch->mean;
+    return rand() >> 24;
 }
 
 Sint8 _synth_getTriangle(Channel *ch) {
@@ -395,7 +391,9 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
             if (!ch->mute && amp->adsr != OFF) {
                 /** Sample func 0-127 */
                 /** Amplitude 0-32767 */
-                Sint32 sample = wav->sampleFunc(ch) * wav->volume * amp->amplitude/16384;
+                Sint8 real = wav->sampleFunc(ch);
+                ch->mean = _synth_getMean(ch, real);
+                Sint32 sample = ch->mean * wav->volume * amp->amplitude/16384;
                 output += sample;
             }
 
