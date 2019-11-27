@@ -7,26 +7,30 @@ typedef enum {
     /**
      * Some kind of ugly filtered saw
      */
-    LOWPASS_SAW,
+    LOWPASS_SAW=0,
 
     /**
      * Some kind of ugly filtered pulse
      */
-    LOWPASS_PULSE,
+    LOWPASS_PULSE=1,
 
     /**
      * White noise (sadly)
      */
-    NOISE,
+    NOISE=2,
 
     /**
      * Pulse width modular waveform
      */
-    PWM,
+    PWM=3,
 
     /** Triangle wave form */
-    TRIANGLE
+    TRIANGLE=4,
+
+    /** Ring modulated wave form */
+    RING_MOD=5
 } Waveform;
+#define WAVEFORM_TYPES 6
 
 typedef struct {
     Waveform waveform;
@@ -62,6 +66,9 @@ typedef struct {
 
     /** Relative volume, 0-127 */
     Sint8 volume;
+
+    /** Ring modulation carrier frequency */
+    Uint16 carrierFrequency;
 
 } Wavesegment;
 

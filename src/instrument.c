@@ -12,6 +12,8 @@ char *instrument_getWaveformName(Waveform waveform) {
         return "Noise";
     case TRIANGLE:
         return "Tria";
+    case RING_MOD:
+        return "Ring";
     }
     return "";
 }

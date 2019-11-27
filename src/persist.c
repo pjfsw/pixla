@@ -126,6 +126,13 @@ bool persist_loadSongWithName(Song *song, char *name) {
                     song->instruments[instr].waves[wave].volume = value;
                 }
             }
+            if (strcmp(parameter, "wcarrierfreq") == 0) {
+                int instr = address / 256;
+                int wave = address & 255;
+                if (wave < MAX_WAVESEGMENTS) {
+                    song->instruments[instr].waves[wave].carrierFrequency = value;
+                }
+            }
 
 
         }
@@ -218,6 +225,9 @@ bool persist_saveSongWithName(Song *song, char* name) {
                 }
                 if (ws->volume != 0) {
                     fprintf(f, "wvol %04x %04x\n", patchByte | wav, ws->volume);
+                }
+                if (ws->carrierFrequency != 0) {
+                    fprintf(f, "wcarrierfreq %04x %04x\n", patchByte | wav, ws->carrierFrequency);
                 }
 
             }

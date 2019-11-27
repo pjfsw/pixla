@@ -48,6 +48,7 @@ typedef struct {
     char pwm[MAX_WAVESEGMENTS][6];
     char filter[MAX_WAVESEGMENTS][6];
     char waveVolume[MAX_WAVESEGMENTS][6];
+    char carrierFrequency[MAX_WAVESEGMENTS][7];
 } InstrumentSettingsData;
 
 typedef struct _Tracker {
@@ -837,44 +838,19 @@ char *instrGetRelease(void *userData, int userIndex) {
 
 void instrDecreaseWave(void *userData, int index) {
     Instrument *instr = getCurrentInstrument((Tracker*)userData);
-
-    switch (instr->waves[index].waveform) {
-    case LOWPASS_SAW:
-        instr->waves[index].waveform = TRIANGLE;
-        break;
-    case LOWPASS_PULSE:
-        instr->waves[index].waveform = LOWPASS_SAW;
-        break;
-    case NOISE:
-        instr->waves[index].waveform = LOWPASS_PULSE;
-        break;
-    case PWM:
-        instr->waves[index].waveform = NOISE;
-        break;
-    case TRIANGLE:
-        instr->waves[index].waveform = PWM;
-        break;
+    if (instr->waves[index].waveform == 0) {
+        instr->waves[index].waveform = WAVEFORM_TYPES-1;
+    } else {
+        instr->waves[index].waveform--;
     }
 }
 void instrIncreaseWave(void *userData, int index) {
     Instrument *instr = getCurrentInstrument((Tracker*)userData);
 
-    switch (instr->waves[index].waveform) {
-    case LOWPASS_SAW:
-        instr->waves[index].waveform = LOWPASS_PULSE;
-        break;
-    case LOWPASS_PULSE:
-        instr->waves[index].waveform = NOISE;
-        break;
-    case NOISE:
-        instr->waves[index].waveform = PWM;
-        break;
-    case PWM:
-        instr->waves[index].waveform = TRIANGLE;
-        break;
-    case TRIANGLE:
-        instr->waves[index].waveform = LOWPASS_SAW;
-        break;
+    if (instr->waves[index].waveform == WAVEFORM_TYPES-1) {
+        instr->waves[index].waveform = 0;
+    } else {
+        instr->waves[index].waveform++;
     }
 }
 
@@ -1023,6 +999,33 @@ char* instrGetWaveformVolume(void *userData, int index) {
     }
 }
 
+void instrDecreaseCarrier(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->waves[index].carrierFrequency > 0) {
+        instr->waves[index].carrierFrequency--;
+    }
+}
+
+void instrIncreaseCarrier(void *userData, int index) {
+    Instrument *instr = getCurrentInstrument((Tracker*)userData);
+    if (instr->waves[index].carrierFrequency < 20000) {
+        instr->waves[index].carrierFrequency++;
+    }
+}
+
+char* instrGetCarrier(void *userData, int index) {
+    Tracker *tracker = (Tracker*)userData;
+    Instrument *instr = getCurrentInstrument(tracker);
+
+    if (instr->waves[index].carrierFrequency == 0) {
+        return "Chan0";
+    } else {
+        sprintf(tracker->instrumentSettingsData.carrierFrequency[index], "%d", instr->waves[index].carrierFrequency);
+        return tracker->instrumentSettingsData.carrierFrequency[index];
+    }
+}
+
+
 bool isWaveActive(void *userData, int index) {
     Tracker *tracker = (Tracker*)userData;
     Instrument *instr = getCurrentInstrument(tracker);
@@ -1032,8 +1035,20 @@ bool isWaveActive(void *userData, int index) {
         }
     }
     return true;
-
 }
+
+bool isPwmActive(void *userData, int index) {
+    Tracker *tracker = (Tracker*)userData;
+    Instrument *instr = getCurrentInstrument(tracker);
+    return isWaveActive(userData, index) && instr->waves[index].waveform == PWM;
+}
+
+bool isRingActive(void *userData, int index) {
+    Tracker *tracker = (Tracker*)userData;
+    Instrument *instr = getCurrentInstrument(tracker);
+    return isWaveActive(userData, index) && instr->waves[index].waveform == RING_MOD;
+}
+
 
 
 void initNotes(Tracker *tracker) {
@@ -1244,10 +1259,11 @@ void createInstrumentSettings(Tracker *tracker) {
         settings_add(sc, buf, instrDecreaseWave, instrIncreaseWave, instrGetWave, isWaveActive, tracker , i);
         settings_add(sc, " Length", instrDecreaseLength, instrIncreaseLength, instrGetLength, isWaveActive, tracker, i);
         settings_add(sc, " Note", instrDecreaseNote, instrIncreaseNote, instrGetNote, isWaveActive, tracker, i);
-        settings_add(sc, " Duty Cycle", instrDecreaseDutyCycle, instrIncreaseDutyCycle, instrGetDutyCycle, isWaveActive, tracker, i);
-        settings_add(sc, " PWM", instrDecreasePWM, instrIncreasePWM, instrGetPWM, isWaveActive, tracker, i);
         settings_add(sc, " Filter", instrDecreaseFilter, instrIncreaseFilter, instrGetFilter, isWaveActive, tracker, i);
         settings_add(sc, " Volume", instrDecreaseWaveformVolume, instrIncreaseWaveformVolume, instrGetWaveformVolume, isWaveActive, tracker, i);
+        settings_add(sc, " Duty Cycle", instrDecreaseDutyCycle, instrIncreaseDutyCycle, instrGetDutyCycle, isPwmActive, tracker, i);
+        settings_add(sc, " PWM", instrDecreasePWM, instrIncreasePWM, instrGetPWM, isPwmActive, tracker, i);
+        settings_add(sc, " Carrier Freq", instrDecreaseCarrier, instrIncreaseCarrier, instrGetCarrier, isRingActive, tracker, i);
     }
 }
 

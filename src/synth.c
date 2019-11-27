@@ -16,6 +16,8 @@ typedef enum {
 
 typedef struct _Channel Channel;
 
+typedef struct _Synth Synth;
+
 /*
  * Function to create a byte in the waveform
  */
@@ -24,7 +26,7 @@ typedef Sint8 (*GenerateWaveformFunc)(Uint8 offset);
 /*
  * Function to generate a sample for the current time period and channel
  */
-typedef Sint8 (*GetSampleFunc)(Channel *channel);
+typedef Sint8 (*GetSampleFunc)(Synth *synth, Channel *channel);
 
 
 #define SWIPE_OFFSET_SCALE 480000
@@ -54,11 +56,13 @@ typedef struct {
     Sint8 *wave;
     GetSampleFunc sampleFunc;
     Uint16 dutyCycle;
+    Uint16 carrierFrequency;
     Sint8 pwm;
     Uint8 currentSegment;
     Sint8 filter;
     Sint8 volume;
     Swipe swipe;
+    Swipe ringModSwipe;
     Modulation frequencyModulation;
     Sint8 noteModulation;
 } WaveData;
@@ -205,85 +209,9 @@ void _synth_updateAdsr(Synth *synth, Channel *ch) {
     }
 }
 
-Sint8 _synth_getSampleFromArray(Channel *ch) {
-    Sint8 sample = ch->waveData.wave[ch->waveData.wavePos >> 8];
-    return sample;
-}
 
-Sint8 _synth_getPulseAtPos(Uint16 dutyCycle, Uint16 wavePos) {
-    return wavePos > dutyCycle ? 127 : -128;
-}
-
-Sint8 _synth_getMean(Channel *ch, Sint8 real) {
-    return (127-ch->waveData.filter) * real / 127 + ch->waveData.filter * ch->mean / 127;
-}
-
-Sint8 _synth_getPulse(Channel *ch) {
-    Uint16 dutyCycle = ch->waveData.dutyCycle;
-    return  _synth_getPulseAtPos(dutyCycle, ch->waveData.wavePos);
-}
-
-Sint8 _synth_getNoise(Channel *ch) {
-    return rand() >> 24;
-}
-
-Sint8 _synth_getTriangle(Channel *ch) {
-    Uint16 offset = ch->waveData.wavePos - 16384;
-    if (offset < 32768) {
-        return (offset-16384)/128;
-    } else {
-        return (49151-offset)/128;
-    }
-}
-
-void _synth_updateWaveform(Synth *synth, Uint8 channel) {
-    Channel *ch =  &synth->channelData[channel];
-    Instrument *instr = &synth->instruments[ch->patch];
-    WaveData *wav = &ch->waveData;
-
-    Uint32 length = 0;
-    Sint8 segment = 0;
-
-    int ms = ch->playtime/SAMPLE_RATE_MS;
-    for (int i = 0; i < MAX_WAVESEGMENTS; i++) {
-        if (instr->waves[i].length == 0 || (ms < length + instr->waves[i].length)) {
-            segment = i;
-            break;
-        }
-        length += instr->waves[i].length;
-    }
-    if (segment == wav->currentSegment) {
-        return;
-    }
-    wav->currentSegment = segment;
-    Wavesegment *waveData = &instr->waves[segment];
-    Waveform waveform = waveData->waveform;
-    ch->waveData.pwm = waveData->pwm;
-    if (waveData->dutyCycle > 0) {
-        ch->waveData.dutyCycle = waveData->dutyCycle << 8;
-    }
-    ch->waveData.noteModulation = waveData->note;
-    ch->waveData.filter = waveData->filter;
-    ch->waveData.volume = waveData->volume == 0 ? 127 : waveData->volume;
-
-    switch (waveform) {
-    case LOWPASS_SAW:
-        wav->wave = synth->lowpassSaw;
-        wav->sampleFunc =  _synth_getSampleFromArray;
-        break;
-    case LOWPASS_PULSE:
-        wav->wave = synth->lowpassPulse;
-        wav->sampleFunc =  _synth_getSampleFromArray;
-        break;
-    case PWM:
-        wav->sampleFunc = _synth_getPulse;
-        break;
-    case NOISE:
-        wav->sampleFunc = _synth_getNoise;
-        break;
-    case TRIANGLE:
-        wav->sampleFunc = _synth_getTriangle;
-    }
+Uint32 _synth_getWaveFactor(FrequencyTable *ft) {
+    return  65536 / frequencyTable_getScaleFactor(ft);
 }
 
 Uint32 _synth_getSwipedFrequency(
@@ -335,6 +263,146 @@ Uint32 _synth_getModulatedFrequency(
     return scaledFrequency * synth->halfToDoubleModulationTable[scaledModulationIndex+32768] / 16384;
 }
 
+Uint32 _synth_getChannelFrequency(Synth *synth, Channel *ch) {
+    FrequencyTable *ft = synth->frequencyTable;
+    WaveData *wav = &ch->waveData;
+    Sint8 note = ch->note;
+
+    if (wav->noteModulation < 0) {
+        note -= wav->noteModulation;
+    } else if (wav->noteModulation > 0) {
+        note = wav->noteModulation;
+    }
+    if (ch->pitchModulation.notesLength > 0 && ch->pitchModulation.speed > 0) {
+        note += ch->pitchModulation.notes[(ch->playtime/(SAMPLE_RATE_MS * ch->pitchModulation.speed) )% ch->pitchModulation.notesLength];
+    }
+
+    Uint32 scaledFrequency = frequencyTable_getScaledValue(ft, note);
+
+    scaledFrequency = _synth_getSwipedFrequency(
+            ft,
+            scaledFrequency,
+            ch->playtime / SAMPLE_RATE_MS,
+            &wav->swipe);
+
+    scaledFrequency = _synth_getModulatedFrequency(
+            synth,
+            scaledFrequency,
+            ch->playtime,
+            &wav->frequencyModulation
+            );
+    return scaledFrequency;
+}
+
+
+Sint8 _synth_getSampleFromArray(Synth *synth, Channel *ch) {
+    Sint8 sample = ch->waveData.wave[ch->waveData.wavePos >> 8];
+    return sample;
+}
+
+Sint8 _synth_getPulseAtPos(Uint16 dutyCycle, Uint16 wavePos) {
+    return wavePos > dutyCycle ? 127 : -128;
+}
+
+Sint8 _synth_getMean(Channel *ch, Sint8 real) {
+    return (127-ch->waveData.filter) * real / 127 + ch->waveData.filter * ch->mean / 127;
+}
+
+Sint8 _synth_getPulse(Synth *synth, Channel *ch) {
+    Uint16 dutyCycle = ch->waveData.dutyCycle;
+    return  _synth_getPulseAtPos(dutyCycle, ch->waveData.wavePos);
+}
+
+Sint8 _synth_getNoise(Synth *synth, Channel *ch) {
+    return rand() >> 24;
+}
+
+Sint8 _synth_getTriangle(Synth *synth, Channel *ch) {
+    Uint16 offset = ch->waveData.wavePos - 16384;
+    if (offset < 32768) {
+        return (offset-16384)/128;
+    } else {
+        return (49151-offset)/128;
+    }
+}
+
+Sint8 _synth_getRingModulation(Synth *synth, Channel *ch) {
+    Sint32 modulation = 0;
+    for (int i = 1; i < 12; i+=2) {
+        modulation += synth->sineTable[(i * ch->waveData.wavePos) % 65536] / i;
+    }
+    Uint32 carrierOffset = 0;
+
+    if (ch->waveData.carrierFrequency == 0) {
+        carrierOffset = _synth_getWaveFactor(synth->frequencyTable) * ch->playtime * _synth_getChannelFrequency(synth, &synth->channelData[0]);
+    } else {
+        carrierOffset = 65536 * ch->playtime * ch->waveData.carrierFrequency;
+    }
+    carrierOffset = (carrierOffset/SAMPLE_RATE) % 65536;
+
+    Sint16 carrierValue = synth->sineTable[carrierOffset];
+
+
+    return  modulation * carrierValue / 10000000;
+}
+
+void _synth_updateWaveform(Synth *synth, Uint8 channel) {
+    Channel *ch =  &synth->channelData[channel];
+    Instrument *instr = &synth->instruments[ch->patch];
+    WaveData *wav = &ch->waveData;
+
+    Uint32 length = 0;
+    Sint8 segment = 0;
+
+    int ms = ch->playtime/SAMPLE_RATE_MS;
+    for (int i = 0; i < MAX_WAVESEGMENTS; i++) {
+        if (instr->waves[i].length == 0 || (ms < length + instr->waves[i].length)) {
+            segment = i;
+            break;
+        }
+        length += instr->waves[i].length;
+    }
+    if (segment == wav->currentSegment) {
+        return;
+    }
+    wav->currentSegment = segment;
+    Wavesegment *waveData = &instr->waves[segment];
+    Waveform waveform = waveData->waveform;
+    ch->waveData.pwm = waveData->pwm;
+    if (waveData->dutyCycle > 0) {
+        ch->waveData.dutyCycle = waveData->dutyCycle << 8;
+    }
+    ch->waveData.noteModulation = waveData->note;
+    ch->waveData.filter = waveData->filter;
+    ch->waveData.volume = waveData->volume == 0 ? 127 : waveData->volume;
+    ch->waveData.carrierFrequency = waveData->carrierFrequency;
+
+    switch (waveform) {
+    case LOWPASS_SAW:
+        wav->wave = synth->lowpassSaw;
+        wav->sampleFunc =  _synth_getSampleFromArray;
+        break;
+    case LOWPASS_PULSE:
+        wav->wave = synth->lowpassPulse;
+        wav->sampleFunc =  _synth_getSampleFromArray;
+        break;
+    case PWM:
+        wav->sampleFunc = _synth_getPulse;
+        break;
+    case NOISE:
+        wav->sampleFunc = _synth_getNoise;
+        break;
+    case TRIANGLE:
+        wav->sampleFunc = _synth_getTriangle;
+        break;
+    case RING_MOD:
+        wav->sampleFunc = _synth_getRingModulation;
+        break;
+
+    }
+}
+
+
 void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
     Synth *synth = (Synth*)userdata;
     Sint16 *buffer = (Sint16*)stream;
@@ -352,30 +420,7 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
             WaveData *wav = &ch->waveData;
             AmpData *amp = &ch->ampData;
 
-            Sint8 note = ch->note;
-            if (wav->noteModulation < 0) {
-                note -= wav->noteModulation;
-            } else if (wav->noteModulation > 0) {
-                note = wav->noteModulation;
-            }
-            if (ch->pitchModulation.notesLength > 0 && ch->pitchModulation.speed > 0) {
-                note += ch->pitchModulation.notes[(ch->playtime/(SAMPLE_RATE_MS * ch->pitchModulation.speed) )% ch->pitchModulation.notesLength];
-            }
-
-            Uint32 scaledFrequency = frequencyTable_getScaledValue(ft, note);
-
-            scaledFrequency = _synth_getSwipedFrequency(
-                    ft,
-                    scaledFrequency,
-                    ch->playtime / SAMPLE_RATE_MS,
-                    &wav->swipe);
-
-            scaledFrequency = _synth_getModulatedFrequency(
-                    synth,
-                    scaledFrequency,
-                    ch->playtime,
-                    &wav->frequencyModulation
-                    );
+            Uint32 scaledFrequency = _synth_getChannelFrequency(synth, ch);
 
 
             if (0 == i % ADSR_PWM_PRESCALER) {
@@ -387,11 +432,10 @@ void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
                 }
             }
 
-
             if (!ch->mute && amp->adsr != OFF) {
                 /** Sample func 0-127 */
                 /** Amplitude 0-32767 */
-                Sint8 real = wav->sampleFunc(ch);
+                Sint8 real = wav->sampleFunc(synth, ch);
                 ch->mean = _synth_getMean(ch, real);
                 Sint32 sample = ch->mean * wav->volume * amp->amplitude/16384;
                 output += sample;
@@ -411,7 +455,7 @@ Sint8 getSquareAmplitude(Uint8 offset) {
 }
 
 Sint8 getSawAmplitude(Uint8 offset) {
-    return offset-128;
+    return 127-offset;
 }
 
 void createFilteredBuffer(GenerateWaveformFunc sampleFunc, Sint8* output, int filter) {
@@ -439,9 +483,6 @@ void _synth_initAudioTables(Synth *synth) {
     }
     for (int i = 0; i < 512; i++) {
         synth->decayReleaseTable[i] = 13950/(i+50)-24;
-    }
-    for (int i = 0; i < 512; i++) {
-        printf("%d = %d\n", i, synth->attackTable[i]);
     }
 
     for (int i = 0; i < 65536; i++) {
