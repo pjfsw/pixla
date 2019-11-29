@@ -48,8 +48,9 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 
 - `Backspace` - Delete previous row
 - `Insert` - Insert row at current position
-- `Del` - Delete note or command at cursor
-- `Shift + Del` - Delete note and command at cursor
+- `Del` - Delete row at cursor
+- `Return` - Clear note or command at cursor
+- `Shift + Return` - Clear note and command at cursor
 
 ## Instruments/Patches
 - Attack/Decay/Sustain/Release configurable per patch

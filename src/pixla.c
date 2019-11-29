@@ -390,6 +390,12 @@ void clearNote(Note *note) {
     note->command = 0;
 }
 
+void copyNote(Note *target, Note *src) {
+    target->note = src->note;
+    target->patch = src->patch;
+    target->command = src->command;
+}
+
 void deletePreviousNote(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
 
@@ -400,9 +406,7 @@ void deletePreviousNote(void *userData, SDL_Scancode scancode, SDL_Keymod keymod
     for (int i = tracker->rowOffset; i < TRACK_LENGTH; i++) {
         Note *target = &getCurrentTrack(tracker)->notes[i-1];
         Note *src = &getCurrentTrack(tracker)->notes[i];
-        target->note = src->note;
-        target->patch = src->patch;
-        target->command = src->command;
+        copyNote(target, src);
     }
     clearNote(&getCurrentTrack(tracker)->notes[TRACK_LENGTH-1]);
     moveUpSteps(tracker, 1);
@@ -414,16 +418,14 @@ void insertBeforeNote(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) 
     for (int i = TRACK_LENGTH-1; i > tracker->rowOffset; i--) {
         Note *target = &getCurrentTrack(tracker)->notes[i];
         Note *src = &getCurrentTrack(tracker)->notes[i-1];
-        target->note = src->note;
-        target->patch = src->patch;
-        target->command = src->command;
+        copyNote(target, src);
     }
     clearNote(getCurrentNote(tracker));
     moveDownSteps(tracker, 1);
 }
 
 
-void deleteNoteOrCommand(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+void clearNoteOrCommand(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
 
     if (tracker->currentColumn == 0) {
@@ -435,13 +437,22 @@ void deleteNoteOrCommand(void *userData, SDL_Scancode scancode, SDL_Keymod keymo
     moveDownSteps(tracker, tracker->stepping);
 }
 
+void clearNoteAndCommand(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
+    clearNote(getCurrentNote(tracker));
+    moveDownSteps(tracker, tracker->stepping);
+}
+
 void deleteNoteAndCommand(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
 
-    getCurrentNote(tracker)->note = NOTE_NONE;
-    getCurrentNote(tracker)->patch = 0;
-    getCurrentNote(tracker)->command = 0;
-    moveDownSteps(tracker, tracker->stepping);
+    for (int i = tracker->rowOffset+1; i < TRACK_LENGTH; i++) {
+        Note *target = &getCurrentTrack(tracker)->notes[i-1];
+        Note *src = &getCurrentTrack(tracker)->notes[i];
+        copyNote(target, src);
+    }
+    clearNote(&getCurrentTrack(tracker)->notes[TRACK_LENGTH-1]);
 }
 
 void playNoteOff(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -536,7 +547,13 @@ void cutTrack(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
 
 void pasteTrack(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
-    memcpy(getCurrentTrack(tracker), &tracker->trackClipboard, sizeof(Track));
+    int notesToPaste = TRACK_LENGTH-tracker->rowOffset;
+    printf("copy %d notes to position %d\n", notesToPaste, tracker->rowOffset);
+    Track *track = getCurrentTrack(tracker);
+
+    memcpy(&track->notes[tracker->rowOffset],
+            &tracker->trackClipboard, notesToPaste*sizeof(Note)
+    );
 }
 
 /*
@@ -1141,8 +1158,6 @@ void initKeyMappings(Tracker *tracker) {
     keyhandler_register(kh, SDL_SCANCODE_C, KM_ALT, NULL, copyPattern, tracker);
     keyhandler_register(kh, SDL_SCANCODE_V, KM_ALT, NULL, pastePattern, tracker);
 
-    keyhandler_register(kh, SDL_SCANCODE_DELETE, KM_SHIFT, predicate_isEditMode, deleteNoteAndCommand, tracker);
-
     keyhandler_register(kh, SDL_SCANCODE_0, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
     keyhandler_register(kh, SDL_SCANCODE_1, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
     keyhandler_register(kh, SDL_SCANCODE_2, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
@@ -1160,12 +1175,14 @@ void initKeyMappings(Tracker *tracker) {
     keyhandler_register(kh, SDL_SCANCODE_E, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
     keyhandler_register(kh, SDL_SCANCODE_F, 0, predicate_isEditOnCommandColumn, editCommand, tracker);
 
-    keyhandler_register(kh, SDL_SCANCODE_DELETE, 0, predicate_isEditMode, deleteNoteOrCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_DELETE, 0, predicate_isEditMode, deleteNoteAndCommand, tracker);
+
     keyhandler_register(kh, SDL_SCANCODE_BACKSPACE, 0, predicate_isEditMode, deletePreviousNote, tracker);
 
-    keyhandler_register(kh, SDL_SCANCODE_NONUSBACKSLASH, 0, predicate_isEditOnNoteColumn, insertNoteOff, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_RETURN, 0, predicate_isEditOnNoteColumn, deleteNoteOrCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_RETURN, 0, predicate_isEditMode, clearNoteOrCommand, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_RETURN, KM_SHIFT, predicate_isEditOnNoteColumn, clearNoteAndCommand, tracker);
 
+    keyhandler_register(kh, SDL_SCANCODE_NONUSBACKSLASH, 0, predicate_isEditOnNoteColumn, insertNoteOff, tracker);
     keyhandler_register(kh, SDL_SCANCODE_NONUSBACKSLASH, 0, predicate_isNotEditMode, playNoteOff, tracker);
     keyhandler_register(kh, SDL_SCANCODE_RETURN, 0, predicate_isNotEditMode, playNoteOff, tracker);
 
