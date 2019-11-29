@@ -131,26 +131,35 @@ void settings_render(SettingsComponent *settings, SDL_Renderer *renderer, int x,
     if (settings->currentSetting < settings->rowOffset) {
         settings->rowOffset = settings->currentSetting;
     }
-    if (settings->currentSetting >= settings->rowOffset + maxRows) {
-        settings->rowOffset = settings->currentSetting - maxRows + 1;
-    }
 
-    int rowsToRender = settings->settingCount-settings->rowOffset;
-    if (rowsToRender > maxRows) {
-        rowsToRender = maxRows;
+
+    int lastValidPos = settings->currentSetting;
+    for (int rows = 0, settingPos = lastValidPos; rows < maxRows && settingPos >= 0; settingPos--) {
+        SettingsItem *item = settings->settings[settingPos];
+        if (item->isActiveFunc != NULL && !item->isActiveFunc(item->userData, item->userIndex)) {
+            continue;
+        }
+        lastValidPos = settingPos;
+        rows++;
+    }
+    if (lastValidPos > settings->rowOffset) {
+        settings->rowOffset = lastValidPos;
     }
     char buf[100];
 
-    for (int row = 0; row < rowsToRender; row++) {
-        SettingsItem *item = settings->settings[settings->rowOffset+row];
+    int settingToRender = settings->rowOffset;
+
+    for (int row = 0; row < maxRows && settingToRender < settings->settingCount; settingToRender++) {
+        SettingsItem *item = settings->settings[settingToRender];
         if (item->isActiveFunc != NULL && !item->isActiveFunc(item->userData, item->userIndex)) {
             continue;
         }
         char *label = item->label;
         char *value = item->valueGetter(item->userData, item->userIndex);
-        char cursor = settings->rowOffset+row == settings->currentSetting ? '>' : ' ';
+        char cursor = settingToRender == settings->currentSetting ? '>' : ' ';
         sprintf(buf, "%c%s: %s",cursor, label, value);
         screen_print(x,y + row * 10, buf, &color);
+        row++;
             //Font .. SDL_Copy to render herperp
      //   _settings_print(renderer, buf, x, y);
     }
