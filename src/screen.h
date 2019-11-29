@@ -58,6 +58,8 @@ void screen_setRowOffset(Sint8 rowOffset);
 
 void screen_setStatusMessage(char* msg);
 
+void screen_setBpm(Uint16 bpm);
+
 void screen_setTrackermode(Trackermode trackermode);
 
 void screen_setChannelMute(Uint8 track, bool mute);

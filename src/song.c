@@ -9,4 +9,5 @@ void song_clear(Song *song) {
         }
     }
     song->arrangement[0].pattern = 0;
+    song->bpm = 58;
 }

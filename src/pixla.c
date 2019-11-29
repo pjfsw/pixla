@@ -103,6 +103,12 @@ bool predicate_isStopped(void *userData) {
     return tracker->mode == STOP;
 }
 
+bool predicate_isEditOrStopped(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+    return tracker->mode == STOP || tracker->mode == EDIT;
+}
+
+
 bool predicate_isPlaying(void *userData) {
     Tracker *tracker = (Tracker*)userData;
     return tracker->mode == PLAY;
@@ -816,16 +822,25 @@ void stopEditing(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     setMode(tracker, STOP);
 }
 
-void stopPlayback(Tracker *tracker) {
+void stopOrCutPlayback(Tracker *tracker, void noteOffFunc(Synth*, Uint8) ) {
     player_stop(tracker->player);
     for (int i = 0; i < CHANNELS; i++) {
         synth_pitchGlideReset(tracker->synth, i);
         synth_frequencyModulation(tracker->synth, i, 0, 0);
         synth_amplitudeModulation(tracker->synth, i, 0, 0);
-        synth_noteRelease(tracker->synth, i);
+        noteOffFunc(tracker->synth, i);
     }
 
     tracker->trackNavi.rowOffset = player_getCurrentRow(tracker->player);
+}
+
+
+void stopPlayback(Tracker *tracker) {
+    stopOrCutPlayback(tracker, synth_noteRelease);
+}
+
+void cutPlayback(Tracker *tracker) {
+    stopOrCutPlayback(tracker, synth_noteOff);
 }
 
 void stopPlaying(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -836,11 +851,26 @@ void stopPlaying(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
 
 void playPattern(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
-    stopPlayback(tracker);
+    cutPlayback(tracker);
     moveToFirstRow(tracker);
     player_start(tracker->player, &tracker->song, tracker->currentPos);
     setMode(tracker, PLAY);
 };
+
+void decreaseSongBpm(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    if (tracker->song.bpm > 1) {
+        tracker->song.bpm--;
+    }
+}
+
+void increaseSongBpm(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    if (tracker->song.bpm < 255) {
+        tracker->song.bpm++;
+    }
+}
+
 
 void setInstrumentMode(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
@@ -1253,6 +1283,9 @@ void initKeyMappings(Tracker *tracker) {
 
     keyhandler_register(kh, SDL_SCANCODE_RCTRL, KM_CTRL, NULL, playPattern, tracker);
 
+    keyhandler_register(kh, SDL_SCANCODE_F9, KM_ALT, predicate_isEditOrStopped, decreaseSongBpm, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_F10, KM_ALT, predicate_isEditOrStopped, increaseSongBpm, tracker);
+
     /* Track commands */
 
     keyhandler_register(kh, MUTE_SC_1, KM_SHIFT, NULL, muteTrack, tracker);
@@ -1467,7 +1500,7 @@ int main(int argc, char* args[]) {
             case SDL_KEYDOWN:
                 keymod = SDL_GetModState();
                 keyhandler_handle(tracker->keyhandler, event.key.keysym.scancode, keymod);
-                //printf("Key %d\n", event.key.keysym.scancode);
+//                printf("Key %d\n", event.key.keysym.scancode);
 
                 break;
             case SDL_KEYUP:
@@ -1491,8 +1524,10 @@ int main(int argc, char* args[]) {
                 tracker->currentPos = playPos;
                 gotoSongPos(tracker, playPos);
             }
+            screen_setBpm(player_getCurrentBpm(tracker->player) * 2);
         } else {
             screen_setRowOffset(tracker->trackNavi.rowOffset);
+            screen_setBpm(tracker->song.bpm * 2);
         }
         screen_setSelectedTrack(tracker->trackNavi.currentTrack);
         screen_setSelectedColumn(tracker->trackNavi.currentColumn);

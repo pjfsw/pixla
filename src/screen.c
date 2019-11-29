@@ -62,6 +62,7 @@ typedef struct {
     Uint8 stepping;
     Uint8 selectedPatch;
     Uint8 octave;
+    char bpm[10];
     Trackermode trackermode;
 } Screen;
 
@@ -324,6 +325,11 @@ void screen_setOctave(Uint8 octave) {
 void screen_setStatusMessage(char* msg) {
     screen->statusMsg = msg;
 }
+
+void screen_setBpm(Uint16 bpm) {
+    sprintf(screen->bpm, "BPM: %d", bpm);
+}
+
 
 void screen_setTrackermode(Trackermode trackermode) {
     screen->trackermode = trackermode;
@@ -604,6 +610,11 @@ void _screen_renderSelectedPatch() {
     }
 }
 
+void _screen_renderSongPanel() {
+    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
+    screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET, screen->bpm, &statusColor);
+}
+
 void _screen_renderInstrumentPanel() {
     if (screen->instrument == NULL || screen->instrumentSettings == NULL) {
         return;
@@ -638,6 +649,7 @@ void screen_update() {
     case EDIT:
     case STOP:
     case PLAY:
+        _screen_renderSongPanel();
         break;
     case EDIT_INSTRUMENT:
         _screen_renderInstrumentPanel();

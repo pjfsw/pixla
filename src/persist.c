@@ -133,8 +133,9 @@ bool persist_loadSongWithName(Song *song, char *name) {
                     song->instruments[instr].waves[wave].carrierFrequency = value;
                 }
             }
-
-
+            if (strcmp(parameter, "songbpm") == 0) {
+                song->bpm = value;
+            }
         }
 
     }
@@ -148,6 +149,8 @@ bool persist_saveSongWithName(Song *song, char* name) {
     if (f  == NULL) {
         return false;
     }
+
+    fprintf(f, "songbpm %04x %04x\n", 0, song->bpm);
 
     for (int pattern = 0; pattern < MAX_PATTERNS; pattern++) {
         bool patternStored = false;

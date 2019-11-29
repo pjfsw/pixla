@@ -183,6 +183,10 @@ Uint8 player_getCurrentRow(Player *player) {
     return player->rowOffset;
 }
 
+Uint8 player_getCurrentBpm(Player *player) {
+    return player->bpm;
+}
+
 Uint16 player_getSongPos(Player *player) {
     return player->songPos;
 }

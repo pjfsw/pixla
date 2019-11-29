@@ -17,6 +17,8 @@ bool player_isPlaying(Player *player);
 
 Uint8 player_getCurrentRow(Player *player);
 
+Uint8 player_getCurrentBpm(Player *player);
+
 Uint16 player_getSongPos(Player *player);
 
 void player_stop(Player *player);
