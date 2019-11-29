@@ -51,6 +51,8 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - `Del` - Delete row at cursor
 - `Return` - Clear note or command at cursor
 - `Shift + Return` - Clear note and command at cursor
+- `Ctrl + Z` - Undo changes in pattern (undo buffer resets when a new pattern is edited)
+- `Ctrl + Y` - Redo changes in pattern (undo buffer resets when a new pattern is edited)
 
 ## Instruments/Patches
 - Attack/Decay/Sustain/Release configurable per patch
