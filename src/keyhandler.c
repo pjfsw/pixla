@@ -1,5 +1,6 @@
 #include "keyhandler.h"
 #include <SDL2/SDL.h>
+#include <stdbool.h>
 
 #define MAX_HANDLERS_PER_SCANCODE 20
 

@@ -31,8 +31,7 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - `Alt + Backspace` - Remove previous song pattern
 - `Alt + Delete`- Remove current song pattern
 - `Alt + Insert`- Insert a pattern at position
-- `Shift + I` - Activate instrument editor mode
-- `Shift + O` - Activate normal mode
+- `Shift + F9, F10` - Activate/deactivate instrument editor mode
 - `Shift + X` - Cut track
 - `Shift + C` - Copy track
 - `Shift + V` - Paste track

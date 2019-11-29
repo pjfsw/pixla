@@ -344,10 +344,6 @@ Sint8 _synth_getTriangle(Synth *synth, Channel *ch) {
 }
 
 Sint8 _synth_getRingModulation(Synth *synth, Channel *ch) {
-    Sint32 modulation = 0;
-    for (int i = 1; i < 12; i+=2) {
-        modulation += synth->sineTable[(i * ch->waveData.wavePos) % 65536] / i;
-    }
     Uint32 carrierOffset = 0;
 
     if (ch->waveData.carrierFrequency == 0) {
@@ -357,7 +353,12 @@ Sint8 _synth_getRingModulation(Synth *synth, Channel *ch) {
     }
     carrierOffset = (carrierOffset/SAMPLE_RATE) % 65536;
 
-    Sint16 carrierValue = synth->sineTable[carrierOffset];
+    Sint16 carrierValue = synth->sineTable[ch->waveData.wavePos];
+
+    Sint32 modulation = 0;
+    for (int i = 1; i < 12; i+=2) {
+        modulation += synth->sineTable[(i * carrierOffset) % 65536] / i;
+    }
 
 
     return  modulation * carrierValue / 10000000;

@@ -63,7 +63,6 @@ typedef struct {
     Uint8 selectedPatch;
     Uint8 octave;
     Trackermode trackermode;
-    PanelMode panelMode;
 } Screen;
 
 SDL_Color noteBeatColor = {255,255,255};
@@ -273,10 +272,6 @@ void screen_setSongPos(Uint16 songPos) {
     screen->songPos = songPos;
 }
 
-void screen_setPanelMode(PanelMode panelMode) {
-    screen->panelMode = panelMode;
-}
-
 void screen_setInstrumentSettings(SettingsComponent *instrumentSettings) {
     screen->instrumentSettings = instrumentSettings;
 }
@@ -469,7 +464,7 @@ void _screen_renderColumns() {
     _screen_setEditColor();
     SDL_RenderFillRect(screen->renderer, &pos);
 
-    if (screen->panelMode == PM_NORMAL) {
+    if (screen->trackermode != EDIT_INSTRUMENT) {
         if (screen->trackermode == EDIT)  {
             _screen_setEnabledCursorColor();
         } else {
@@ -639,10 +634,12 @@ void screen_update() {
     _screen_renderLogo();
     _screen_renderSong();
     _screen_renderColumns();
-    switch (screen->panelMode) {
-    case PM_NORMAL:
+    switch (screen->trackermode) {
+    case EDIT:
+    case STOP:
+    case PLAY:
         break;
-    case PM_INSTRUMENT:
+    case EDIT_INSTRUMENT:
         _screen_renderInstrumentPanel();
         break;
     }

@@ -8,7 +8,6 @@
 #include "track.h"
 #include "trackermode.h"
 #include "instrument.h"
-#include "panelmode.h"
 #include "settings_component.h"
 
 /*
@@ -42,8 +41,6 @@ void screen_setArrangementData(PatternPtr *arrangement);
 
 /** Set the position in arrangement */
 void screen_setSongPos(Uint16 songPos);
-
-void screen_setPanelMode(PanelMode panelMode);
 
 void screen_setInstrumentSettings(SettingsComponent *instrumentSettings);
 

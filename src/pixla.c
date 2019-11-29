@@ -14,7 +14,6 @@
 #include "defaultsettings.h"
 #include "persist.h"
 #include "keyhandler.h"
-#include "panelmode.h"
 
 /*
 https://milkytracker.titandemo.org/docs/FT2.pdf
@@ -72,7 +71,6 @@ typedef struct _Tracker {
     Song song;
     Trackermode mode;
     Uint8 currentColumn;
-    PanelMode panelMode;
 } Tracker;
 
 /**
@@ -94,14 +92,14 @@ bool predicate_isPlaying(void *userData) {
     return tracker->mode == PLAY;
 }
 
-bool predicate_isPanelNormal(void *userData) {
+bool predicate_isNotInstrumentMode(void *userData) {
     Tracker *tracker = (Tracker*)userData;
-    return PM_NORMAL == tracker->panelMode;
+    return tracker->mode != EDIT_INSTRUMENT;
 }
 
-bool predicate_isPanelInstrument(void *userData) {
+bool predicate_isInstrumentMode(void *userData) {
     Tracker *tracker = (Tracker*)userData;
-    return PM_INSTRUMENT == tracker->panelMode ;
+    return tracker->mode == EDIT_INSTRUMENT;
 }
 
 
@@ -717,17 +715,10 @@ void playPattern(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     setMode(tracker, PLAY);
 };
 
-void setInstrumentPanelMode(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+void setInstrumentMode(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
-    tracker->panelMode = PM_INSTRUMENT;
-
+    setMode(tracker, EDIT_INSTRUMENT);
 }
-
-void setDefaultPanelMode(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
-    Tracker *tracker = (Tracker*)userData;
-    tracker->panelMode = PM_NORMAL;
-}
-
 
 void gotoPreviousSetting(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
@@ -1194,14 +1185,15 @@ void initKeyMappings(Tracker *tracker) {
     keyhandler_register(kh, SDL_SCANCODE_SPACE, 0, predicate_isEditMode, stopEditing, tracker);
     keyhandler_register(kh, SDL_SCANCODE_SPACE, 0, predicate_isStopped, startEditing, tracker);
     keyhandler_register(kh, SDL_SCANCODE_SPACE, 0, predicate_isPlaying, stopPlaying, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_SPACE, 0, predicate_isInstrumentMode, stopPlaying, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_INSERT, 0, predicate_isEditMode, insertBeforeNote, tracker);
 
     /** Pattern movement */
-    keyhandler_register(kh, SDL_SCANCODE_UP, 0, predicate_isPanelNormal, moveUp, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_DOWN, 0, predicate_isPanelNormal, moveDown, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_LEFT, 0, predicate_isPanelNormal, previousColumn, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_RIGHT, 0, predicate_isPanelNormal, nextColumn, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_UP, 0, predicate_isNotInstrumentMode, moveUp, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_DOWN, 0, predicate_isNotInstrumentMode, moveDown, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_LEFT, 0, predicate_isNotInstrumentMode, previousColumn, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_RIGHT, 0, predicate_isNotInstrumentMode, nextColumn, tracker);
     keyhandler_register(kh, SDL_SCANCODE_PAGEUP, 0, NULL, moveUpMany, tracker);
     keyhandler_register(kh, SDL_SCANCODE_PAGEDOWN, 0, NULL, moveDownMany, tracker);
 
@@ -1215,14 +1207,16 @@ void initKeyMappings(Tracker *tracker) {
     keyhandler_register(kh, SDL_SCANCODE_TAB, 0, NULL, nextTrack, tracker);
 
     /** Panel mode switch */
-    keyhandler_register(kh, SDL_SCANCODE_I, KM_SHIFT, NULL, setInstrumentPanelMode, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_O, KM_SHIFT, NULL, setDefaultPanelMode, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_F9, KM_SHIFT, predicate_isNotInstrumentMode, setInstrumentMode, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_F10, KM_SHIFT, predicate_isNotInstrumentMode, setInstrumentMode, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_F9, KM_SHIFT, predicate_isInstrumentMode, stopPlaying, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_F10, KM_SHIFT, predicate_isInstrumentMode, stopPlaying, tracker);
 
     /** Instrument editor */
-    keyhandler_register(kh, SDL_SCANCODE_UP, 0, predicate_isPanelInstrument, gotoPreviousSetting, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_DOWN, 0, predicate_isPanelInstrument, gotoNextSetting, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_LEFT, 0, predicate_isPanelInstrument, decreaseSetting, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_RIGHT, 0, predicate_isPanelInstrument, increaseSetting, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_UP, 0, predicate_isInstrumentMode, gotoPreviousSetting, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_DOWN, 0, predicate_isInstrumentMode, gotoNextSetting, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_LEFT, 0, predicate_isInstrumentMode, decreaseSetting, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_RIGHT, 0, predicate_isInstrumentMode, increaseSetting, tracker);
 
 
 }
@@ -1287,7 +1281,6 @@ Tracker *tracker_init() {
     initKeyMappings(tracker);
     initNotes(tracker);
     initCommandKeys(tracker);
-    tracker->panelMode = PM_NORMAL;
     tracker->mode = STOP;
 
     return tracker;
@@ -1360,7 +1353,6 @@ int main(int argc, char* args[]) {
             }
 
         }
-        screen_setPanelMode(tracker->panelMode);
         screen_setStepping(tracker->stepping);
         if (player_isPlaying(tracker->player)) {
             screen_setRowOffset(player_getCurrentRow(tracker->player));
