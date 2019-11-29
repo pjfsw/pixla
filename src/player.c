@@ -16,6 +16,7 @@
 #define EFFECT_TONE_PORTAMENTO 0x3
 #define EFFECT_VIBRATO 0x4
 #define EFFECT_TREMOLO 0x7
+#define EFFECT_JUMP_SONG_POS 0xB
 #define EFFECT_PATTERN_BREAK 0xD
 #define EFFECT_TEMPO 0xF
 
@@ -34,6 +35,7 @@ typedef struct _Player {
     Uint8 channels;
     Uint8 bpm;
     Sint16 patternBreak;
+    Sint16 jumpSongPos;
 } Player;
 
 void _player_parameterToNibbles(Uint8 parameter, Uint8 *left, Uint8 *right) {
@@ -45,11 +47,15 @@ Uint32 _player_getDelayFromBpm(int bpm) {
     return 30000/bpm;
 }
 
-void _player_increaseSongPos(Player *player) {
-    player->songPos++;
-    if (player->songPos >= MAX_PATTERNS || player->song->arrangement[player->songPos].pattern < 0) {
+void _player_setSongPos(Player *player, Uint16 songPos) {
+    if (songPos >= MAX_PATTERNS || player->song->arrangement[songPos].pattern < 0) {
         player->songPos = 0;
+    } else {
+        player->songPos = songPos;
     }
+}
+void _player_increaseSongPos(Player *player) {
+    _player_setSongPos(player, player->songPos+1);
 }
 
 Uint32 _player_playCallback(Uint32 interval, void *param) {
@@ -124,6 +130,9 @@ Uint32 _player_playCallback(Uint32 interval, void *param) {
         if (effect == EFFECT_PATTERN_BREAK) {
             player->patternBreak = parameter;
         }
+        if (effect == EFFECT_JUMP_SONG_POS) {
+            player->jumpSongPos = parameter;
+        }
         bool isArpeggio = (effect == EFFECT_ARPEGGIO) && parameter > 0;
         Sint8 *arpeggio = player->channelData[channel].arpeggio;
         if (isArpeggio) {
@@ -139,6 +148,9 @@ Uint32 _player_playCallback(Uint32 interval, void *param) {
     if (player->patternBreak > -1) {
         player->rowOffset = player->patternBreak % TRACK_LENGTH;
         _player_increaseSongPos(player);
+    } else if (player->jumpSongPos > -1) {
+        player->rowOffset = 0;
+        _player_setSongPos(player, player->jumpSongPos);
     } else {
         player->rowOffset = player->rowOffset + 1;
         if (player->rowOffset >= TRACK_LENGTH) {
@@ -147,6 +159,7 @@ Uint32 _player_playCallback(Uint32 interval, void *param) {
         }
     }
     player->patternBreak = -1;
+    player->jumpSongPos = - 1;
     return _player_getDelayFromBpm(player->bpm)/4;
 }
 
@@ -176,6 +189,7 @@ void player_start(Player *player, Song *song, Uint16 songPos) {
     player->playbackTick = 0;
     player->bpm = song->bpm;
     player->patternBreak = -1;
+    player->jumpSongPos = -1;
     player->timerId = SDL_AddTimer(_player_getDelayFromBpm(song->bpm)/4, _player_playCallback, player);
 }
 

@@ -10,6 +10,7 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - `3xy` - Tone portamento, only xy == 00 supported (change pitch)
 - `4xy` - Vibrato, x = speed, y = depth
 - `7xy` - Tremolo, x = speed, y = depth
+- `Bxx` - Jump to song position (0-255).
 - `Dxx` - Pattern break, set position to row xx in next song position
 - `Fxx` - Set tempo, in 2 * BPM values (i.e. 0x40 = 64 = 128 BPM)
 
@@ -22,6 +23,7 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - `Space` - Stop/Edit
 - `Right Ctrl` - Play Pattern
 - `F9, F10` - Select instrument
+- `Alt + F9, F10` - Decrease or increase song BPM (set on song start, can be overridden with F command)
 - `Half / Shift + Half` - Increase/Decrease stepping
 - `Alt + Left, Right` - Decrease/Increase pattern at position
 - `Alt + Up, Down` - Decrease/Increase song position

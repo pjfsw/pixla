@@ -120,7 +120,7 @@ void _screen_createNoteTextures() {
             sprintf(noteAndOctave, "===");
         } else if (i == NOTE_NONE) {
             sprintf(noteAndOctave, "---");
-        } else if (i < 120) {
+        } else if (i < 96) {
             sprintf(noteAndOctave, "%s%d", noteText[i%12], i/12);
         } else {
             sprintf(noteAndOctave, "NaN");
