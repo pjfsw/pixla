@@ -5,6 +5,7 @@
 #include <SDL2/SDL_ttf.h>
 
 #include "screen.h"
+#include "note.h"
 
 #define SCREEN_WIDTH 400
 #define SCREEN_HEIGHT 300
@@ -66,10 +67,11 @@ typedef struct {
     Trackermode trackermode;
 } Screen;
 
-SDL_Color noteBeatColor = {255,255,255};
-SDL_Color noteColor = {157,157,157};
 SDL_Color statusColor = {255,255,255};
-
+SDL_Color noteBeatColor = {255,255,255};
+SDL_Color noteColor = {160,160,160};
+SDL_Color noteOffBeatColor = {127,127,127};
+SDL_Color noteOffColor = {80,80,80};
 
 Screen *screen = NULL;
 
@@ -114,9 +116,9 @@ void _screen_createNoteTextures() {
     char noteAndOctave[5];
 
     for (int i = 0; i < 128;i++) {
-        if (i == 126) {
+        if (i == NOTE_OFF) {
             sprintf(noteAndOctave, "===");
-        } else if (i == 127) {
+        } else if (i == NOTE_NONE) {
             sprintf(noteAndOctave, "---");
         } else if (i < 120) {
             sprintf(noteAndOctave, "%s%d", noteText[i%12], i/12);
@@ -124,8 +126,8 @@ void _screen_createNoteTextures() {
             sprintf(noteAndOctave, "NaN");
         }
 
-        SDL_Surface *text1 = TTF_RenderText_Solid(screen->font, noteAndOctave, noteColor);
-        SDL_Surface *text2 = TTF_RenderText_Solid(screen->font, noteAndOctave, noteBeatColor);
+        SDL_Surface *text1 = TTF_RenderText_Solid(screen->font, noteAndOctave, i == NOTE_NONE ? noteOffColor : noteColor);
+        SDL_Surface *text2 = TTF_RenderText_Solid(screen->font, noteAndOctave, i == NOTE_NONE ? noteOffBeatColor : noteBeatColor);
 
         if (NULL != text1 ) {
             screen->noteTexture[i] = SDL_CreateTextureFromSurface(screen->renderer, text1);
