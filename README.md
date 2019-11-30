@@ -20,6 +20,7 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - `F1, F2` - Decrease/increase octave in editor
 - `Shift + F1, F2` - Transpose track down/up
 - `Alt + F1, F2` - Transpose pattern down/up
+- `Shift + F4` - Render WAV file
 - `Space` - Stop/Edit
 - `Right Ctrl` - Play Pattern
 - `F9, F10` - Select instrument
