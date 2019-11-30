@@ -63,6 +63,8 @@ bool _keyhandler_validateModifier(SDL_Keymod keymod, KeyhandlerModifier modifier
         return ((keymod & KMOD_LALT) || (keymod & KMOD_RALT)) && ((keymod & KMOD_LSHIFT) || (keymod & KMOD_RSHIFT));
     case KM_CTRL:
         return keymod == KMOD_LCTRL || keymod == KMOD_RCTRL;
+    case KM_SHIFT_CTRL:
+        return ((keymod & KMOD_LCTRL) || (keymod & KMOD_RCTRL)) && ((keymod & KMOD_LSHIFT) || (keymod & KMOD_RSHIFT));
     }
     return false;
 }

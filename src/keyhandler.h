@@ -15,7 +15,9 @@ typedef enum {
     KM_SHIFT,
     KM_ALT,
     KM_SHIFT_ALT,
-    KM_CTRL
+    KM_CTRL,
+    KM_SHIFT_CTRL
+
 } KeyhandlerModifier;
 /**
  * Initialize the keyhandler.

@@ -10,6 +10,7 @@
 #include "instrument.h"
 #include "settings_component.h"
 #include "file_selector.h"
+#include "inputfield.h"
 
 /*
  * Initialize screen
@@ -49,6 +50,8 @@ void screen_setInstrumentSettings(SettingsComponent *instrumentSettings);
 
 void screen_setFileSelector(FileSelector *fileSelector);
 
+void screen_songNameField(Inputfield *inputfield);
+
 void screen_setSelectedTrack(Uint8 track);
 
 void screen_setSelectedColumn(Uint8 column);
@@ -70,6 +73,8 @@ void screen_setTrackermode(Trackermode trackermode);
 void screen_setChannelMute(Uint8 track, bool mute);
 
 void screen_setTableToShow(Sint8 *table, Uint8 elements);
+
+SDL_Color *screen_getDefaultColor();
 
 
 /*

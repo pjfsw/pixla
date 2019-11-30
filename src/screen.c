@@ -6,6 +6,7 @@
 
 #include "screen.h"
 #include "note.h"
+#include "inputfield.h"
 
 #define SCREEN_WIDTH 400
 #define SCREEN_HEIGHT 300
@@ -55,6 +56,7 @@ typedef struct {
     PatternPtr *arrangement;
     SettingsComponent *instrumentSettings;
     FileSelector *fileSelector;
+    Inputfield *songNameField;
     Uint16 songPos;
     char rowNumbers[256][4];
     char* statusMsg;
@@ -290,6 +292,9 @@ void screen_setFileSelector(FileSelector *fileSelector) {
     screen->fileSelector = fileSelector;
 }
 
+void screen_songNameField(Inputfield *inputfield) {
+    screen->songNameField = inputfield;
+}
 
 void screen_setSelectedColumn(Uint8 column) {
     screen->selectedColumn = column;
@@ -645,9 +650,14 @@ void _screen_renderFileSelector() {
     }
     SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
     fileSelector_render(screen->fileSelector, screen->renderer, PANEL_X_OFFSET, PANEL_Y_OFFSET, PANEL_ROWS);
-
 }
 
+void _screen_renderSavePanel() {
+    if (screen->songNameField != NULL) {
+        SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
+        inputfield_render(screen->songNameField, screen->renderer, PANEL_X_OFFSET, PANEL_Y_OFFSET, MAX_SONG_NAME);
+    }
+}
 
 void _screen_renderStatusMessage() {
     if (screen->statusMsg != NULL) {
@@ -679,8 +689,10 @@ void screen_update() {
         _screen_renderInstrumentPanel();
         break;
     case LOAD_SONG:
-    case SAVE_SONG:
         _screen_renderFileSelector();
+        break;
+    case SAVE_SONG:
+        _screen_renderSavePanel();
         break;
     }
     _screen_renderStatus();
@@ -688,3 +700,8 @@ void screen_update() {
     SDL_SetRenderDrawColor(screen->renderer, 0,0,0,0);
     SDL_RenderPresent(screen->renderer);
 }
+
+SDL_Color *screen_getDefaultColor() {
+    return &statusColor;
+}
+
