@@ -27,7 +27,8 @@
 #define MID_PANEL_Y SONG_PANEL_Y
 #define PANEL_X_OFFSET (MID_PANEL_X + PANEL_PADDING)
 #define PANEL_Y_OFFSET (MID_PANEL_Y + PANEL_PADDING)
-
+#define PANEL_ROWS 12
+#define SCREEN_MAX_SONG_NAME 24
 
 typedef struct {
     Uint8 x;
@@ -64,8 +65,9 @@ typedef struct {
     Uint8 stepping;
     Uint8 selectedPatch;
     Uint8 octave;
-    char bpm[10];
     Trackermode trackermode;
+    char bpm[10];
+    char songName[SCREEN_MAX_SONG_NAME+1];
 } Screen;
 
 SDL_Color statusColor = {255,255,255};
@@ -274,6 +276,10 @@ void screen_setArrangementData(PatternPtr *arrangement) {
 
 void screen_setSongPos(Uint16 songPos) {
     screen->songPos = songPos;
+}
+
+void screen_setSongName(char *name) {
+    strncpy(screen->songName, name, SCREEN_MAX_SONG_NAME);
 }
 
 void screen_setInstrumentSettings(SettingsComponent *instrumentSettings) {
@@ -621,6 +627,7 @@ void _screen_renderSelectedPatch() {
 void _screen_renderSongPanel() {
     SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
     screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET, screen->bpm, &statusColor);
+    screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET+10*(PANEL_ROWS-1), screen->songName, &statusColor);
 }
 
 void _screen_renderInstrumentPanel() {
@@ -629,7 +636,7 @@ void _screen_renderInstrumentPanel() {
     }
 
     SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
-    settings_render(screen->instrumentSettings, screen->renderer, PANEL_X_OFFSET, PANEL_Y_OFFSET, 12);
+    settings_render(screen->instrumentSettings, screen->renderer, PANEL_X_OFFSET, PANEL_Y_OFFSET, PANEL_ROWS);
 }
 
 void _screen_renderFileSelector() {
@@ -637,7 +644,7 @@ void _screen_renderFileSelector() {
         return;
     }
     SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
-    fileSelector_render(screen->fileSelector, screen->renderer, PANEL_X_OFFSET, PANEL_Y_OFFSET, 12);
+    fileSelector_render(screen->fileSelector, screen->renderer, PANEL_X_OFFSET, PANEL_Y_OFFSET, PANEL_ROWS);
 
 }
 

@@ -947,6 +947,7 @@ void loadSong(Tracker *tracker, char *name) {
     for (int i = 1; i < MAX_INSTRUMENTS; i++) {
         synth_loadPatch(tracker->synth, i, &tracker->song.instruments[i]);
     }
+    screen_setSongName(name);
     gotoSongPos(tracker, 0);
 }
 

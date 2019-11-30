@@ -140,6 +140,8 @@ bool persist_loadSongWithName(Song *song, char *name) {
 
     }
     fclose(f);
+    strncpy(song->name, name, MAX_SONG_NAME-1);
+
     return true;
 }
 

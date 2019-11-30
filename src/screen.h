@@ -43,6 +43,8 @@ void screen_setArrangementData(PatternPtr *arrangement);
 /** Set the position in arrangement */
 void screen_setSongPos(Uint16 songPos);
 
+void screen_setSongName(char *name);
+
 void screen_setInstrumentSettings(SettingsComponent *instrumentSettings);
 
 void screen_setFileSelector(FileSelector *fileSelector);
