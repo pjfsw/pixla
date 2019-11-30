@@ -53,6 +53,7 @@ typedef struct {
     Track **tracks;
     PatternPtr *arrangement;
     SettingsComponent *instrumentSettings;
+    FileSelector *fileSelector;
     Uint16 songPos;
     char rowNumbers[256][4];
     char* statusMsg;
@@ -278,6 +279,11 @@ void screen_setSongPos(Uint16 songPos) {
 void screen_setInstrumentSettings(SettingsComponent *instrumentSettings) {
     screen->instrumentSettings = instrumentSettings;
 }
+
+void screen_setFileSelector(FileSelector *fileSelector) {
+    screen->fileSelector = fileSelector;
+}
+
 
 void screen_setSelectedColumn(Uint8 column) {
     screen->selectedColumn = column;
@@ -626,6 +632,15 @@ void _screen_renderInstrumentPanel() {
     settings_render(screen->instrumentSettings, screen->renderer, PANEL_X_OFFSET, PANEL_Y_OFFSET, 12);
 }
 
+void _screen_renderFileSelector() {
+    if (screen->fileSelector == NULL) {
+        return;
+    }
+    SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
+    fileSelector_render(screen->fileSelector, screen->renderer, PANEL_X_OFFSET, PANEL_Y_OFFSET, 12);
+
+}
+
 
 void _screen_renderStatusMessage() {
     if (screen->statusMsg != NULL) {
@@ -655,6 +670,10 @@ void screen_update() {
         break;
     case EDIT_INSTRUMENT:
         _screen_renderInstrumentPanel();
+        break;
+    case LOAD_SONG:
+    case SAVE_SONG:
+        _screen_renderFileSelector();
         break;
     }
     _screen_renderStatus();

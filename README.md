@@ -41,6 +41,8 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - `Alt + X` - Cut pattern
 - `Alt + C` - Copy pattern
 - `Alt + V` - Paste pattern
+- `Ctrl + O` - Open song
+- `Ctrl + S` - Save song
 
 ### Instrument editor mode
 

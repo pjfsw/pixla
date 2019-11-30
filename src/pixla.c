@@ -15,6 +15,7 @@
 #include "persist.h"
 #include "keyhandler.h"
 #include "audiorenderer.h"
+#include "file_selector.h"
 
 /*
 https://milkytracker.titandemo.org/docs/FT2.pdf
@@ -68,6 +69,7 @@ typedef struct _Tracker {
     Synth *synth;
     Player *player;
     Keyhandler *keyhandler;
+    FileSelector *fileSelector;
     SettingsComponent *instrumentSettings;
     InstrumentSettingsData instrumentSettingsData;
     Sint8 keyToNote[256];
@@ -125,6 +127,27 @@ bool predicate_isInstrumentMode(void *userData) {
     return tracker->mode == EDIT_INSTRUMENT;
 }
 
+bool predicate_isAuxMode(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+    return tracker->mode == EDIT_INSTRUMENT || tracker->mode == LOAD_SONG || tracker->mode == SAVE_SONG;
+}
+
+bool predicate_isNotAuxMode(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+    return !(tracker->mode == EDIT_INSTRUMENT || tracker->mode == LOAD_SONG || tracker->mode == SAVE_SONG);
+}
+
+bool predicate_isOpenSongDialog(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+    return tracker->mode == LOAD_SONG;
+}
+
+bool predicate_isFileDialog(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+    return predicate_isOpenSongDialog(userData) || tracker->mode == SAVE_SONG;
+}
+
+
 
 bool predicate_isEditOnCommandColumn(void *userData) {
     Tracker *tracker = (Tracker*)userData;
@@ -140,6 +163,10 @@ bool predicate_isEditOnNoteColumn(void *userData) {
         return false;
     }
     return true;
+}
+
+bool predicate_isStoppedOrPlaying(void *userData) {
+    return predicate_isStopped(userData) || predicate_isPlaying(userData);
 }
 
 bool predicate_isNotEditMode(void *userData) {
@@ -885,6 +912,53 @@ void renderSong(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     audiorenderer_close(renderer);
 }
 
+void loadSongDialog(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    fileSelector_loadDir(tracker->fileSelector, "Load song", ".");
+    setMode(tracker, LOAD_SONG);
+}
+
+void saveSongDialog(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    fileSelector_loadDir(tracker->fileSelector, "Save song", ".");
+    setMode(tracker, SAVE_SONG);
+}
+
+
+void gotoNextFile(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    fileSelector_next(tracker->fileSelector);
+}
+
+void gotoPreviousFile(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    fileSelector_prev(tracker->fileSelector);
+}
+
+void loadSong(Tracker *tracker, char *name) {
+    song_clear(&tracker->song);
+    defaultsettings_createInstruments(tracker->song.instruments);
+
+    if (!persist_loadSongWithName(&tracker->song, name)) {
+        screen_setStatusMessage("Could not open song.pxm");
+    } else {
+        screen_setStatusMessage("Successfully loaded song");
+    }
+    for (int i = 1; i < MAX_INSTRUMENTS; i++) {
+        synth_loadPatch(tracker->synth, i, &tracker->song.instruments[i]);
+    }
+    gotoSongPos(tracker, 0);
+}
+
+void openSong(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    char *name = fileSelector_getName(tracker->fileSelector);
+    if (name != NULL) {
+        loadSong(tracker, name);
+        setMode(tracker, STOP);
+    }
+}
+
 void setInstrumentMode(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
     setMode(tracker, EDIT_INSTRUMENT);
@@ -1300,6 +1374,8 @@ void initKeyMappings(Tracker *tracker) {
     keyhandler_register(kh, SDL_SCANCODE_F10, KM_ALT, predicate_isEditOrStopped, increaseSongBpm, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_F4, KM_SHIFT, NULL, renderSong, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_O, KM_CTRL, NULL, loadSongDialog, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_S, KM_CTRL, NULL, saveSongDialog, tracker);
 
     /* Track commands */
 
@@ -1342,7 +1418,7 @@ void initKeyMappings(Tracker *tracker) {
 
     keyhandler_register(kh, SDL_SCANCODE_NONUSBACKSLASH, 0, predicate_isEditOnNoteColumn, insertNoteOff, tracker);
     keyhandler_register(kh, SDL_SCANCODE_NONUSBACKSLASH, 0, predicate_isNotEditMode, playNoteOff, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_RETURN, 0, predicate_isNotEditMode, playNoteOff, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_RETURN, 0, predicate_isStoppedOrPlaying, playNoteOff, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_F1, 0, NULL, previousOctave, tracker);
     keyhandler_register(kh, SDL_SCANCODE_F2, 0, NULL, nextOctave, tracker);
@@ -1360,7 +1436,8 @@ void initKeyMappings(Tracker *tracker) {
     keyhandler_register(kh, SDL_SCANCODE_SPACE, 0, predicate_isEditMode, stopEditing, tracker);
     keyhandler_register(kh, SDL_SCANCODE_SPACE, 0, predicate_isStopped, startEditing, tracker);
     keyhandler_register(kh, SDL_SCANCODE_SPACE, 0, predicate_isPlaying, stopPlaying, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_SPACE, 0, predicate_isInstrumentMode, stopPlaying, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_SPACE, 0, predicate_isAuxMode, stopPlaying, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_ESCAPE, 0, predicate_isAuxMode, stopPlaying, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_INSERT, 0, predicate_isEditMode, insertBeforeNote, tracker);
 
@@ -1368,10 +1445,10 @@ void initKeyMappings(Tracker *tracker) {
     keyhandler_register(kh, SDL_SCANCODE_Y, KM_CTRL, predicate_isEditMode, redoPatternChange, tracker);
 
     /** Pattern movement */
-    keyhandler_register(kh, SDL_SCANCODE_UP, 0, predicate_isNotInstrumentMode, moveUp, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_DOWN, 0, predicate_isNotInstrumentMode, moveDown, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_LEFT, 0, predicate_isNotInstrumentMode, previousColumn, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_RIGHT, 0, predicate_isNotInstrumentMode, nextColumn, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_UP, 0, predicate_isNotAuxMode, moveUp, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_DOWN, 0, predicate_isNotAuxMode, moveDown, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_LEFT, 0, predicate_isNotAuxMode, previousColumn, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_RIGHT, 0, predicate_isNotAuxMode, nextColumn, tracker);
     keyhandler_register(kh, SDL_SCANCODE_PAGEUP, 0, NULL, moveUpMany, tracker);
     keyhandler_register(kh, SDL_SCANCODE_PAGEDOWN, 0, NULL, moveDownMany, tracker);
 
@@ -1396,6 +1473,11 @@ void initKeyMappings(Tracker *tracker) {
     keyhandler_register(kh, SDL_SCANCODE_LEFT, 0, predicate_isInstrumentMode, decreaseSetting, tracker);
     keyhandler_register(kh, SDL_SCANCODE_RIGHT, 0, predicate_isInstrumentMode, increaseSetting, tracker);
 
+    /* File dialog */
+    keyhandler_register(kh, SDL_SCANCODE_UP, 0, predicate_isFileDialog, gotoPreviousFile, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_DOWN, 0, predicate_isFileDialog, gotoNextFile, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_RETURN, 0, predicate_isOpenSongDialog, openSong, tracker);
+
 
 }
 
@@ -1412,6 +1494,10 @@ void tracker_close(Tracker *tracker) {
         if (tracker->synth != NULL) {
             synth_close(tracker->synth);
             tracker->synth = NULL;
+        }
+        if (tracker->fileSelector != NULL) {
+            fileSelector_close(tracker->fileSelector);
+            tracker->fileSelector = NULL;
         }
         free(tracker);
         tracker = NULL;
@@ -1455,6 +1541,7 @@ Tracker *tracker_init() {
         tracker_close(tracker);
         return NULL;
     }
+    tracker->fileSelector = fileSelector_init();
     createInstrumentSettings(tracker);
     initKeyMappings(tracker);
     initNotes(tracker);
@@ -1462,19 +1549,6 @@ Tracker *tracker_init() {
     tracker->mode = STOP;
 
     return tracker;
-}
-
-void loadSong(Tracker *tracker, char *name) {
-    song_clear(&tracker->song);
-    if (!persist_loadSongWithName(&tracker->song, name)) {
-        screen_setStatusMessage("Could not open song.pxm");
-    } else {
-        screen_setStatusMessage("Successfully loaded song");
-    }
-    for (int i = 1; i < MAX_INSTRUMENTS; i++) {
-        synth_loadPatch(tracker->synth, i, &tracker->song.instruments[i]);
-    }
-
 }
 
 int main(int argc, char* args[]) {
@@ -1490,12 +1564,11 @@ int main(int argc, char* args[]) {
 
 
     screen_setInstrumentSettings(tracker->instrumentSettings);
-    defaultsettings_createInstruments(tracker->song.instruments);
+    screen_setFileSelector(tracker->fileSelector);
 
     loadSong(tracker, "song.pxm");
 
     screen_setArrangementData(tracker->song.arrangement);
-    gotoSongPos(tracker, 0);
 
     //synth_test();
     //return 0;

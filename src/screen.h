@@ -9,6 +9,7 @@
 #include "trackermode.h"
 #include "instrument.h"
 #include "settings_component.h"
+#include "file_selector.h"
 
 /*
  * Initialize screen
@@ -43,6 +44,8 @@ void screen_setArrangementData(PatternPtr *arrangement);
 void screen_setSongPos(Uint16 songPos);
 
 void screen_setInstrumentSettings(SettingsComponent *instrumentSettings);
+
+void screen_setFileSelector(FileSelector *fileSelector);
 
 void screen_setSelectedTrack(Uint8 track);
 
