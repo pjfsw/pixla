@@ -36,6 +36,7 @@ typedef struct _Player {
     Uint8 bpm;
     Sint16 patternBreak;
     Sint16 jumpSongPos;
+    bool isEndReached;
 } Player;
 
 void _player_parameterToNibbles(Uint8 parameter, Uint8 *left, Uint8 *right) {
@@ -50,6 +51,7 @@ Uint32 _player_getDelayFromBpm(int bpm) {
 void _player_setSongPos(Player *player, Uint16 songPos) {
     if (songPos >= MAX_PATTERNS || player->song->arrangement[songPos].pattern < 0) {
         player->songPos = 0;
+        player->isEndReached = true;
     } else {
         player->songPos = songPos;
     }
@@ -58,7 +60,7 @@ void _player_increaseSongPos(Player *player) {
     _player_setSongPos(player, player->songPos+1);
 }
 
-Uint32 _player_playCallback(Uint32 interval, void *param) {
+Uint32 player_processSong(Uint32 interval, void *param) {
     Player *player = (Player*)param;
     Synth *synth = player->synth;
 
@@ -181,7 +183,7 @@ void player_close(Player *player) {
     }
 }
 
-void player_start(Player *player, Song *song, Uint16 songPos) {
+void player_reset(Player *player, Song *song, Uint16 songPos) {
     player_stop(player);
     player->song = song;
     player->songPos = songPos;
@@ -190,7 +192,11 @@ void player_start(Player *player, Song *song, Uint16 songPos) {
     player->bpm = song->bpm;
     player->patternBreak = -1;
     player->jumpSongPos = -1;
-    player->timerId = SDL_AddTimer(_player_getDelayFromBpm(song->bpm)/4, _player_playCallback, player);
+    player->isEndReached = false;
+}
+
+void player_play(Player *player) {
+    player->timerId = SDL_AddTimer(0, player_processSong, player);
 }
 
 Uint8 player_getCurrentRow(Player *player) {
@@ -215,4 +221,8 @@ void player_stop(Player *player) {
 
 bool player_isPlaying(Player *player) {
     return player->timerId != 0;
+}
+
+bool player_isEndReached(Player *player) {
+    return player->isEndReached;
 }

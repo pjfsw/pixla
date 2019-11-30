@@ -14,6 +14,7 @@
 #include "defaultsettings.h"
 #include "persist.h"
 #include "keyhandler.h"
+#include "audiorenderer.h"
 
 /*
 https://milkytracker.titandemo.org/docs/FT2.pdf
@@ -853,7 +854,8 @@ void playPattern(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
     cutPlayback(tracker);
     moveToFirstRow(tracker);
-    player_start(tracker->player, &tracker->song, tracker->currentPos);
+    player_reset(tracker->player, &tracker->song, tracker->currentPos);
+    player_play(tracker->player);
     setMode(tracker, PLAY);
 };
 
@@ -871,6 +873,17 @@ void increaseSongBpm(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     }
 }
 
+
+void renderSong(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    AudioRenderer *renderer = audiorenderer_init("song.wav");
+    if (renderer == NULL) {
+        fprintf(stderr, "Audio renderer failed to initialize\n");
+        return;
+    }
+    audiorenderer_renderSong(renderer, &tracker->song, 60*60*1000);
+    audiorenderer_close(renderer);
+}
 
 void setInstrumentMode(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
@@ -1286,6 +1299,8 @@ void initKeyMappings(Tracker *tracker) {
     keyhandler_register(kh, SDL_SCANCODE_F9, KM_ALT, predicate_isEditOrStopped, decreaseSongBpm, tracker);
     keyhandler_register(kh, SDL_SCANCODE_F10, KM_ALT, predicate_isEditOrStopped, increaseSongBpm, tracker);
 
+    keyhandler_register(kh, SDL_SCANCODE_F4, KM_SHIFT, NULL, renderSong, tracker);
+
     /* Track commands */
 
     keyhandler_register(kh, MUTE_SC_1, KM_SHIFT, NULL, muteTrack, tracker);
@@ -1433,7 +1448,7 @@ Tracker *tracker_init() {
     tracker->patch = 1;
 
     if (
-            NULL == (tracker->synth = synth_init(CHANNELS)) ||
+            NULL == (tracker->synth = synth_init(CHANNELS, true)) ||
             NULL == (tracker->player = player_init(tracker->synth, CHANNELS)) ||
             NULL == (tracker->keyhandler = keyhandler_init())
     ) {

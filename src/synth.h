@@ -9,7 +9,15 @@
 
 typedef struct _Synth Synth;
 
-Synth *synth_init(Uint8 channels);
+/**
+ * Initialize synth device with specified number of channels
+ *
+ * Set enablePlayback to true for soundcard playback, or false for
+ * offline processing such as audio file generation
+ */
+Synth *synth_init(Uint8 channels, bool enablePlayback);
+
+int synth_getSampleRate(Synth *synth);
 
 /**
  * Load patch data into synth
@@ -69,5 +77,12 @@ void synth_play(Synth *synth);
  * Perform tests of synth functions and print out responses
  */
 void synth_test();
+
+/**
+ * Generate audio out to the provided stream of len bytes. Should not be called
+ * manually when synth is initialized with sound card output as it would
+ * interfere with the audio output
+ */
+void synth_processBuffer(void* userdata, Uint8* stream, int len);
 
 #endif /* SYNTH_H_ */

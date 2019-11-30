@@ -421,7 +421,7 @@ void _synth_updateWaveform(Synth *synth, Uint8 channel) {
 }
 
 
-void _synth_processBuffer(void* userdata, Uint8* stream, int len) {
+void synth_processBuffer(void* userdata, Uint8* stream, int len) {
     Synth *synth = (Synth*)userdata;
     Sint16 *buffer = (Sint16*)stream;
     FrequencyTable *ft = synth->frequencyTable;
@@ -521,7 +521,7 @@ void _synth_initChannels(Synth *synth) {
     }
 }
 
-Synth* synth_init(Uint8 channels) {
+Synth* synth_init(Uint8 channels, bool enablePlayback) {
     if (channels < 1) {
         fprintf(stderr, "Cannot set 0 channels\n");
         return NULL;
@@ -533,35 +533,42 @@ Synth* synth_init(Uint8 channels) {
     synth->instruments = calloc(MAX_INSTRUMENTS, sizeof(Instrument));
     synth->frequencyTable = frequencyTable_init(96, 128, -45);
 
-    SDL_AudioSpec want;
-    SDL_AudioSpec have;
-
     srand(time(NULL));
 
-    SDL_memset(&want, 0, sizeof(want));
-    want.freq = synth->sampleFreq; // Playback frequency on Sound card. Each sample takes worth 1/24000 second
-    want.format = AUDIO_S16SYS; // 8-bit unsigned samples
-    want.channels = 1; // Only play mono for simplicity = 1 byte = 1 sample
-    want.samples = 256; // Buffer size.
-    want.callback = _synth_processBuffer; // Called whenever the sound card needs more data
-    want.userdata = synth;
-
-    SDL_InitSubSystem(SDL_INIT_AUDIO);
-    synth->audio = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
-    if (synth->audio == 0) {
-        fprintf(stderr, "Failed to open audio due to %s\n", SDL_GetError());
-        synth_close(synth);
-        return NULL;
-    }
-    if (have.format != want.format) { /* we let this one thing change. */
-        SDL_Log("We didn't get our audio format.");
-    }
     _synth_initAudioTables(synth);
     _synth_initChannels(synth);
 
-    SDL_PauseAudioDevice(synth->audio, 0); /* start audio playing. */
+    if (enablePlayback) {
+        SDL_AudioSpec want;
+        SDL_AudioSpec have;
+
+        SDL_memset(&want, 0, sizeof(want));
+        want.freq = synth->sampleFreq; // Playback frequency on Sound card. Each sample takes worth 1/24000 second
+        want.format = AUDIO_S16SYS; // 8-bit unsigned samples
+        want.channels = 1; // Only play mono for simplicity = 1 byte = 1 sample
+        want.samples = 256; // Buffer size.
+        want.callback = synth_processBuffer; // Called whenever the sound card needs more data
+        want.userdata = synth;
+
+        SDL_InitSubSystem(SDL_INIT_AUDIO);
+        synth->audio = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
+        if (synth->audio == 0) {
+            fprintf(stderr, "Failed to open audio due to %s\n", SDL_GetError());
+            synth_close(synth);
+            return NULL;
+        }
+        if (have.format != want.format) { /* we let this one thing change. */
+            SDL_Log("We didn't get our audio format.");
+        }
+
+        SDL_PauseAudioDevice(synth->audio, 0); /* start audio playing. */
+    }
 
     return synth;
+}
+
+int synth_getSampleRate(Synth *synth) {
+    return SAMPLE_RATE;
 }
 
 void synth_close(Synth *synth) {
@@ -748,7 +755,7 @@ int testNumberOfChannels=1;
 void _synth_testRunBuffer(Synth *testSynth) {
     int bufSize = 64;
     Uint8 buf[bufSize];
-    _synth_processBuffer(testSynth, buf, bufSize);
+    synth_processBuffer(testSynth, buf, bufSize);
 
     Sint8 *sbuf = (Sint8*)buf;
 
@@ -826,15 +833,13 @@ void _synth_runTests(Synth *testSynth) {
 }
 
 void synth_test() {
-    Synth *testSynth = synth_init(testNumberOfChannels);
+    Synth *testSynth = synth_init(testNumberOfChannels, false);
     if (testSynth == NULL) {
         fprintf(stderr, "Synth test failed to start\n");
         return;
     }
     printf("======================TEST OF %d CHANNELS!========================\n", testNumberOfChannels);
-    SDL_PauseAudioDevice(testSynth->audio, 1); /* sop audio playing. */
     _synth_runTests(testSynth);
     printf("\n");
-    SDL_PauseAudioDevice(testSynth->audio, 0); /* start audio playing. */
     synth_close(testSynth);
 }

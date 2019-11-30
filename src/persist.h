@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include "song.h"
 
-bool persist_loadSongWithName(Song *tracker, char *name);
+bool persist_loadSongWithName(Song *song, char *name);
 
 bool persist_saveSongWithName(Song *song, char* name);
 

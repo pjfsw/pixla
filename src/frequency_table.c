@@ -21,7 +21,7 @@ FrequencyTable *frequencyTable_init(Uint8 notes, Uint8 scaleFactor, Sint8 baseNo
     for (int note = 0; note < notes; note++) {
         int noteOffset = note+baseNote;
         frequencyTable->frequencies[note] = 440.0 * pow(2, (double)noteOffset/(double)12) * (double)scaleFactor;
-        printf("freq[%d]=%d\n", note, frequencyTable->frequencies[note]);
+        //printf("freq[%d]=%d\n", note, frequencyTable->frequencies[note]);
     }
     return frequencyTable;
 }
