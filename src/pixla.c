@@ -1,6 +1,7 @@
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <unistd.h>
 
 #include "screen.h"
 #include "synth.h"
@@ -17,6 +18,8 @@
 #include "audiorenderer.h"
 #include "file_selector.h"
 #include "inputfield.h"
+#include "strutils.h"
+#include "songsuffix.h"
 
 /*
 https://milkytracker.titandemo.org/docs/FT2.pdf
@@ -41,6 +44,8 @@ http://coppershade.org/helpers/DOCS/protracker23.readme.txt
 #define KM_SHIFT_SONG KM_SHIFT_ALT
 
 #define PATTERN_UNDO_BUFFER_SIZE 100
+
+typedef void (*ConfirmStateCb)(void *userData);
 
 typedef struct _Tracker Tracker;
 
@@ -95,7 +100,9 @@ typedef struct _Tracker {
     Uint16 patternUndoSize;
     Uint16 patternRedoSize;
     UndoItem patternUndo[PATTERN_UNDO_BUFFER_SIZE];
-
+    ConfirmStateCb confirmStateCb;
+    char songTmpFileName[MAX_SONG_NAME+1];
+    char confirmMessage[100];
 } Tracker;
 
 /**
@@ -123,9 +130,14 @@ bool predicate_isPlaying(void *userData) {
     return tracker->mode == PLAY;
 }
 
+bool predicate_isConfirmState(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+    return tracker->mode == CONFIRM_STATE;
+}
+
 bool predicate_isNotInstrumentMode(void *userData) {
     Tracker *tracker = (Tracker*)userData;
-    return tracker->mode != EDIT_INSTRUMENT;
+    return !predicate_isConfirmState(tracker) && tracker->mode != EDIT_INSTRUMENT;
 }
 
 bool predicate_isInstrumentMode(void *userData) {
@@ -251,6 +263,7 @@ void moveDown(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) {
 
 void setMode(Tracker *tracker, Trackermode modeToSet) {
     tracker->mode = modeToSet;
+    screen_setStatusMessage("");
     screen_setTrackermode(tracker->mode);
 };
 
@@ -820,16 +833,7 @@ void registerNote(Tracker *tracker, SDL_Scancode scancode, Sint8 note) {
     keyhandler_register(tracker->keyhandler, scancode, 0, predicate_isKeyboardPlayable, playNote, tracker);
 }
 
-void saveSong(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
-    if (persist_saveSongWithName((Song*)userData, "song.pxm")) {
-        screen_setStatusMessage("Successfully saved song.pxm");
-    } else {
-        screen_setStatusMessage("Could not save song.pxm");
-    }
-}
-
 void resetChannelParams(Synth *synth, Uint8 channel) {
-    //synth_pitchOffset(synth, channel, 0);
     synth_pitchModulation(synth, channel, 0, NULL, 0);
     synth_frequencyModulation(synth, channel, 0,0);
     synth_amplitudeModulation(synth, channel, 0, 0);
@@ -943,15 +947,20 @@ void loadSong(Tracker *tracker, char *name) {
     song_clear(&tracker->song);
     defaultsettings_createInstruments(tracker->song.instruments);
 
+    char buf[MAX_SONG_NAME+20];
     if (!persist_loadSongWithName(&tracker->song, name)) {
-        screen_setStatusMessage("Could not open song.pxm");
+        sprintf(buf, "%s  failed to load", name);
+        screen_setStatusMessage(buf);
     } else {
-        screen_setStatusMessage("Successfully loaded song");
+        sprintf(buf, "%s loaded OK!", name);
+        screen_setStatusMessage(buf);
     }
     for (int i = 1; i < MAX_INSTRUMENTS; i++) {
         synth_loadPatch(tracker->synth, i, &tracker->song.instruments[i]);
     }
-    screen_setSongName(name);
+    strnosuffix(tracker->song.name, name, SONG_SUFFIX, MAX_SONG_NAME-1);
+
+    screen_setSongName(tracker->song.name);
     gotoSongPos(tracker, 0);
 }
 
@@ -959,8 +968,8 @@ void openSong(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
     char *name = fileSelector_getName(tracker->fileSelector);
     if (name != NULL) {
-        loadSong(tracker, name);
         setMode(tracker, STOP);
+        loadSong(tracker, name);
     }
 }
 
@@ -969,14 +978,61 @@ void removeCharacter(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     inputfield_delete(tracker->songNameField);
 }
 
+void saveTheSong(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+
+    char buf[MAX_SONG_NAME+20];
+    if (persist_saveSongWithName(&tracker->song, tracker->songTmpFileName)) {
+        sprintf(buf, "Successfully saved %s", tracker->songTmpFileName);
+        screen_setStatusMessage(buf);
+    } else {
+        sprintf(buf, "Could not save %s", tracker->songTmpFileName);
+        screen_setStatusMessage(buf);
+    }
+}
+
+void generateTmpSongName(Tracker *tracker, char *name) {
+    strcpy(tracker->songTmpFileName, name);
+    strcat(tracker->songTmpFileName, SONG_SUFFIX);
+}
+
+void saveSong(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    generateTmpSongName(tracker, tracker->song.name);
+    fprintf(stderr, "song name '%s'\n", tracker->songTmpFileName);
+    saveTheSong(tracker);
+}
+
 void saveSongAs(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
     char *name = inputfield_getValue(tracker->songNameField);
 
-    printf("Save song to %s\n", name);
+    generateTmpSongName(tracker, name);
+
+    if (!access(tracker->songTmpFileName, F_OK)) {
+        strcpy(tracker->confirmMessage, "File exists. Overwrite? (y/N)");
+        tracker->confirmStateCb = saveTheSong;
+        setMode(tracker, CONFIRM_STATE);
+        screen_setStatusMessage(tracker->confirmMessage);
+        return;
+    }
+
     setMode(tracker, STOP);
+    saveTheSong(tracker);
+
+    strncpy(tracker->song.name, name, MAX_SONG_NAME);
+    screen_setSongName(tracker->song.name);
+
 }
 
+void invokeConfirmStateCb(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+
+    setMode(tracker, STOP);
+    if (tracker->confirmStateCb != NULL && scancode == SDL_SCANCODE_Y) {
+        tracker->confirmStateCb(userData);
+    }
+}
 
 void setInstrumentMode(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
@@ -1385,16 +1441,16 @@ void initKeyMappings(Tracker *tracker) {
     keyhandler_register(kh, SDL_SCANCODE_BACKSPACE, KM_SONG, NULL, deletePreviousSongPos, tracker);
     keyhandler_register(kh, SDL_SCANCODE_DELETE, KM_SONG, NULL, deleteCurrentSongPos, tracker);
 
-    keyhandler_register(kh, SDL_SCANCODE_F12, 0, NULL, saveSong, &tracker->song);
+    keyhandler_register(kh, SDL_SCANCODE_F12, 0, NULL, saveSong, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_RCTRL, KM_CTRL, NULL, playPattern, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_F9, KM_SONG, predicate_isEditOrStopped, decreaseSongBpm, tracker);
     keyhandler_register(kh, SDL_SCANCODE_F10, KM_SONG, predicate_isEditOrStopped, increaseSongBpm, tracker);
 
-    keyhandler_register(kh, SDL_SCANCODE_B, KM_SONG, NULL, renderSong, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_O, KM_SONG, NULL, loadSongDialog, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_S, KM_SONG, NULL, saveSongDialog, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_B, KM_CTRL, NULL, renderSong, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_O, KM_CTRL, NULL, loadSongDialog, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_S, KM_CTRL, NULL, saveSongDialog, tracker);
 
     /* Track commands */
 
@@ -1500,6 +1556,11 @@ void initKeyMappings(Tracker *tracker) {
     /* Save input */
     keyhandler_register(kh, SDL_SCANCODE_BACKSPACE, 0, predicate_isSaveSongInput, removeCharacter, tracker);
     keyhandler_register(kh, SDL_SCANCODE_RETURN, 0, predicate_isSaveSongInput, saveSongAs, tracker);
+
+    /* Confirm state */
+    keyhandler_register(kh, SDL_SCANCODE_Y, 0, predicate_isConfirmState, invokeConfirmStateCb, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_N, 0,  predicate_isConfirmState, invokeConfirmStateCb, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_ESCAPE, 0,  predicate_isConfirmState, invokeConfirmStateCb, tracker);
 }
 
 void tracker_close(Tracker *tracker) {

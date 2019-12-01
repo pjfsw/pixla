@@ -11,7 +11,7 @@
 #define SCREEN_WIDTH 400
 #define SCREEN_HEIGHT 300
 #define SCREEN_SCALING 2
-#define STATUS_ROW 130
+#define OCTAVE_ROW 130
 #define INSTRUMENT_X 280
 #define INSTRUMENT_Y 40
 
@@ -29,7 +29,10 @@
 #define PANEL_X_OFFSET (MID_PANEL_X + PANEL_PADDING)
 #define PANEL_Y_OFFSET (MID_PANEL_Y + PANEL_PADDING)
 #define PANEL_ROWS 12
+#define PANEL_COLS 24
+#define STATUS_MSG_ROW  (PANEL_Y_OFFSET + 10 * (PANEL_ROWS - 1))
 #define SCREEN_MAX_SONG_NAME 24
+#define SCREEN_MAX_STATUS_MSG 40
 
 typedef struct {
     Uint8 x;
@@ -59,7 +62,7 @@ typedef struct {
     Inputfield *songNameField;
     Uint16 songPos;
     char rowNumbers[256][4];
-    char* statusMsg;
+    char statusMsg[SCREEN_MAX_STATUS_MSG+1];
     Uint8 rowOffset;
     Uint8 selectedTrack;
     Uint8 selectedColumn;
@@ -70,6 +73,9 @@ typedef struct {
     Trackermode trackermode;
     char bpm[10];
     char songName[SCREEN_MAX_SONG_NAME+1];
+    Uint32 ticks;
+    Uint32 statusTimer;
+    Uint32 statusOffset;
 } Screen;
 
 SDL_Color statusColor = {255,255,255};
@@ -265,6 +271,31 @@ void screen_print(int x, int y, char* msg, SDL_Color *color) {
     }
 }
 
+void screen_nprint(int x, int y, char* msg, int maxchars) {
+
+    if (screen->font == NULL || msg == NULL) {
+        return;
+    }
+
+    SDL_Rect pos = {
+            .x=x,
+            .y=y,
+            .w=8,
+            .h=8,
+    };
+
+    int n = 0;
+    while (*msg != 0 && n < maxchars) {
+        n++;
+        SDL_RenderCopy(screen->renderer, screen->asciiTexture[(int)*msg], NULL, &pos);
+        pos.x+=8;
+        msg++;
+
+    }
+}
+
+
+
 void screen_setTrackData(Uint8 track, Track *trackData) {
     if (track >= screen->numberOfTracks) {
         return;
@@ -342,7 +373,9 @@ void screen_setOctave(Uint8 octave) {
 
 
 void screen_setStatusMessage(char* msg) {
-    screen->statusMsg = msg;
+    strncpy(screen->statusMsg, msg, SCREEN_MAX_STATUS_MSG);
+    screen->statusTimer = 0;
+    screen->statusOffset = 0;
 }
 
 void screen_setBpm(Uint16 bpm) {
@@ -511,7 +544,7 @@ void _screen_renderColumns() {
 void _screen_renderDivisions() {
     SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
     SDL_SetRenderDrawColor(screen->renderer, 77,77,77,255);
-    SDL_RenderDrawLine(screen->renderer,0,STATUS_ROW+8, SCREEN_WIDTH,STATUS_ROW+8);
+    SDL_RenderDrawLine(screen->renderer,0,OCTAVE_ROW+8, SCREEN_WIDTH,OCTAVE_ROW+8);
 
     SDL_Rect pos = {
             .x = SONG_PANEL_X,
@@ -524,7 +557,7 @@ void _screen_renderDivisions() {
     SDL_Rect pos2 = {
             .x = MID_PANEL_X,
             .y = MID_PANEL_Y,
-            .w = 200,
+            .w = 196,
             .h = PANEL_HEIGHT
     };
 
@@ -537,7 +570,7 @@ void _screen_renderStatusOctave() {
     for (int i = 0; i < 7; i++) {
         SDL_Rect pos = {
                 .x=8+i*56,
-                .y=STATUS_ROW,
+                .y=OCTAVE_ROW,
                 .w=56,
                 .h=8
         };
@@ -574,7 +607,7 @@ void _screen_renderStepping() {
 
     char s[3];
     sprintf(s, "%d", screen->stepping);
-    screen_print(0, STATUS_ROW, s, &statusColor);
+    screen_print(0, OCTAVE_ROW, s, &statusColor);
 }
 
 void _screen_renderSelectedPatch() {
@@ -632,7 +665,36 @@ void _screen_renderSelectedPatch() {
 void _screen_renderSongPanel() {
     SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
     screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET, screen->bpm, &statusColor);
-    screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET+10*(PANEL_ROWS-1), screen->songName, &statusColor);
+    if (strlen(screen->statusMsg) == 0) {
+        screen_print(PANEL_X_OFFSET, STATUS_MSG_ROW, screen->songName, &statusColor);
+    } else {
+        int len = strlen(screen->statusMsg);
+        if (len > PANEL_COLS) {
+            int ticks = SDL_GetTicks() - screen->ticks;
+            screen->ticks = SDL_GetTicks();
+            screen->statusTimer += ticks;
+            if (screen->statusTimer > 100) {
+                screen->statusTimer = 0;
+                screen->statusOffset++;
+            }
+            if (screen->statusOffset >= len) {
+                screen->statusOffset = 0;
+            }
+        } else {
+            screen->statusOffset = 0;
+        }
+        int charsToPrint = len-screen->statusOffset;
+        if (charsToPrint > PANEL_COLS) {
+            charsToPrint = PANEL_COLS;
+        }
+        screen_nprint(PANEL_X_OFFSET, STATUS_MSG_ROW, &screen->statusMsg[screen->statusOffset], charsToPrint);
+        if (len > PANEL_COLS) {
+            int charsToPrintAgain = PANEL_COLS - charsToPrint;
+            if (charsToPrintAgain > 0)  {
+                screen_nprint(PANEL_X_OFFSET + 8 * charsToPrint, STATUS_MSG_ROW, screen->statusMsg, charsToPrintAgain);
+            }
+        }
+    }
 }
 
 void _screen_renderInstrumentPanel() {
@@ -655,20 +717,14 @@ void _screen_renderFileSelector() {
 void _screen_renderSavePanel() {
     if (screen->songNameField != NULL) {
         SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
-        inputfield_render(screen->songNameField, screen->renderer, PANEL_X_OFFSET, PANEL_Y_OFFSET, MAX_SONG_NAME);
-    }
-}
-
-void _screen_renderStatusMessage() {
-    if (screen->statusMsg != NULL) {
-        screen_print(16, STATUS_ROW, screen->statusMsg, &statusColor);
+        screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET, "Save song:", screen_getDefaultColor());
+        inputfield_render(screen->songNameField, screen->renderer, PANEL_X_OFFSET, PANEL_Y_OFFSET+10, MAX_SONG_NAME);
     }
 }
 
 void _screen_renderStatus() {
     _screen_renderStepping();
     _screen_renderSelectedPatch();
-    _screen_renderStatusMessage();
     _screen_renderIsEditMode();
     _screen_renderStatusOctave();
 }
@@ -683,6 +739,7 @@ void screen_update() {
     case EDIT:
     case STOP:
     case PLAY:
+    case CONFIRM_STATE:
         _screen_renderSongPanel();
         break;
     case EDIT_INSTRUMENT:

@@ -48,4 +48,5 @@ void inputfield_render(Inputfield *inputfield, SDL_Renderer *renderer, int x, in
     char buf[INPUT_MAX_VALUE];
     strncpy(buf, inputfield->value, width);
     screen_print(x, y, buf, screen_getDefaultColor());
+    screen_print(x+8*strlen(inputfield->value), y, "_", screen_getDefaultColor());
 }

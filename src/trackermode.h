@@ -7,7 +7,8 @@ typedef enum {
     PLAY,
     EDIT_INSTRUMENT,
     LOAD_SONG,
-    SAVE_SONG
+    SAVE_SONG,
+    CONFIRM_STATE
 } Trackermode;
 
 

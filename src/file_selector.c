@@ -4,6 +4,8 @@
 
 #include "file_selector.h"
 #include "screen.h"
+#include "strutils.h"
+#include "songsuffix.h"
 
 #define MAX_DIR_ENTRIES 500
 #define MAX_FILENAME 500
@@ -37,13 +39,8 @@ bool _fileSelector_isValidFilename(struct dirent *de) {
     if (de->d_type != DT_REG) {
         return false;
     }
-    int len = strlen(de->d_name);
-    if (len > 4 && !strncasecmp(&de->d_name[len-4], ".pxm", 4)) {
-        return true;
-    }
 
-    return false;
-
+    return strendswith(de->d_name, SONG_SUFFIX);
 }
 
 void fileSelector_loadDir(FileSelector *fileSelector, char *title, char *dirname) {

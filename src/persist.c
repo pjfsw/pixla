@@ -62,7 +62,6 @@ bool persist_loadSongWithName(Song *song, char *name) {
             }
             if (strcmp(parameter, "attack") == 0) {
                 int instr = address / 256;
-                printf("instrument address %d: %d attack = %d\n", address, instr, value);
                 song->instruments[instr].attack = value;
             }
             if (strcmp(parameter, "decay") == 0) {
@@ -140,7 +139,6 @@ bool persist_loadSongWithName(Song *song, char *name) {
 
     }
     fclose(f);
-    strncpy(song->name, name, MAX_SONG_NAME-1);
 
     return true;
 }
