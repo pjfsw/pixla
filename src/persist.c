@@ -215,7 +215,8 @@ bool persist_saveSongWithName(Song *song, char* name) {
                     fprintf(f, "wlen %04x %04x\n", patchByte | wav, ws->length);
                 }
                 if (ws->note != 0) {
-                    fprintf(f, "wnote %04x %04x\n", patchByte | wav, ws->note);
+                    Uint16 noteAs16Bit = ws->note;
+                    fprintf(f, "wnote %04x %04x\n", patchByte | wav, noteAs16Bit);
                 }
                 if (ws->dutyCycle != 0) {
                     fprintf(f, "wdc %04x %04x\n", patchByte | wav, ws->dutyCycle);
