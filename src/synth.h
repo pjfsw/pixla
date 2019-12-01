@@ -67,6 +67,11 @@ void synth_noteRelease(Synth *synth, Uint8 channel);
 
 void synth_noteTrigger(Synth *synth, Uint8 channel, Uint8 patch, Sint8 note);
 
+void synth_setGlobalVolume(Synth *synth, Uint8 volume);
+
+void synth_setChannelVolume(Synth *synth, Uint8 channel, Uint8 volume);
+
+
 /* Sint8* synth_getTable(Synth *synth); */
 
 void synth_close(Synth *synth);

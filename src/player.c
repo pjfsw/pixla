@@ -17,7 +17,9 @@
 #define EFFECT_VIBRATO 0x4
 #define EFFECT_TREMOLO 0x7
 #define EFFECT_JUMP_SONG_POS 0xB
+#define EFFECT_VOLUME 0xC
 #define EFFECT_PATTERN_BREAK 0xD
+#define EFFECT_GLOBAL_VOLUME 0xE
 #define EFFECT_TEMPO 0xF
 
 typedef struct {
@@ -84,6 +86,11 @@ Uint32 player_processSong(Uint32 interval, void *param) {
             if (effect == EFFECT_TONE_PORTAMENTO) {
                 synth_notePitch(synth, channel, patch, note);
             } else {
+                if (effect != EFFECT_VOLUME) {
+                    synth_setChannelVolume(synth, channel, 255);
+                } else {
+                    synth_setChannelVolume(synth, channel, parameter);
+                }
                 synth_noteTrigger(synth, channel, patch, note);
             }
         }
@@ -126,6 +133,14 @@ Uint32 player_processSong(Uint32 interval, void *param) {
         } else {
             synth_pitchGlideStop(synth, channel);
         }
+        if (effect == EFFECT_VOLUME) {
+            synth_setChannelVolume(synth, channel, parameter);
+
+        }
+        if (effect == EFFECT_GLOBAL_VOLUME) {
+            synth_setGlobalVolume(synth, parameter);
+        }
+
         if (effect == EFFECT_TEMPO && parameter > 0) {
             player->bpm = parameter;
         }
@@ -193,6 +208,7 @@ void player_reset(Player *player, Song *song, Uint16 songPos) {
     player->patternBreak = -1;
     player->jumpSongPos = -1;
     player->isEndReached = false;
+    synth_setGlobalVolume(player->synth, 255);
 }
 
 void player_play(Player *player) {

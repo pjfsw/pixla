@@ -72,6 +72,7 @@ typedef struct {
     Sint16 amplitude;
     Uint16 adsrTimer;
     Adsr adsr;
+    Uint8 volume;
 } AmpData;
 /*
  * Definition of an oscillator channel
@@ -106,6 +107,7 @@ typedef struct _Synth {
     /** 8192 represents 1/2 and 32768 represents 2. Mid index 32768 means 16384 aka 1 */
     Uint16 halfToDoubleModulationTable[65536];
     Uint32 clock;
+    Uint8 volume;
 } Synth;
 
 #define SAMPLE_RATE 48000
@@ -455,7 +457,9 @@ void synth_processBuffer(void* userdata, Uint8* stream, int len) {
                 /** Amplitude 0-32767 */
                 Sint8 real = wav->sampleFunc(synth, ch);
                 ch->mean = _synth_getMean(ch, real);
-                Sint32 sample = ch->mean * wav->volume * amp->amplitude/16384;
+                Sint64 scaledVolume = amp->volume * synth->volume;
+                // 1065369600 = 255*255*16384
+                Sint64 sample = ch->mean * wav->volume * amp->amplitude * scaledVolume / 1065369600;
                 output += sample;
             }
 
@@ -518,6 +522,7 @@ void _synth_initChannels(Synth *synth) {
         synth->channelData[i].waveData.wave = synth->lowpassPulse;
         synth->channelData[i].waveData.sampleFunc = _synth_getSampleFromArray;
         synth->channelData[i].patch  = 0;
+        synth->channelData[i].ampData.volume = 255;
     }
 }
 
@@ -532,6 +537,7 @@ Synth* synth_init(Uint8 channels, bool enablePlayback) {
     synth->channelData = calloc(channels, sizeof(Channel));
     synth->instruments = calloc(MAX_INSTRUMENTS, sizeof(Instrument));
     synth->frequencyTable = frequencyTable_init(96, 128, -45);
+    synth->volume = 255;
 
     srand(time(NULL));
 
@@ -660,6 +666,20 @@ void synth_noteOff(Synth *synth, Uint8 channel) {
     synth->channelData[channel].ampData.adsr = OFF;
     synth->channelData[channel].ampData.amplitude = 0;
     synth->channelData[channel].ampData.adsrTimer = 0;
+}
+
+void synth_setGlobalVolume(Synth *synth, Uint8 volume) {
+    if (synth == NULL) {
+        return;
+    }
+    synth->volume = volume;
+}
+
+void synth_setChannelVolume(Synth *synth, Uint8 channel, Uint8 volume) {
+    if (synth == NULL || channel >= synth->channels) {
+        return;
+    }
+    synth->channelData[channel].ampData.volume = volume;
 }
 
 void synth_frequencyModulation(Synth *synth, Uint8 channel, Uint8 frequency, Uint8 amplitude) {
@@ -843,3 +863,4 @@ void synth_test() {
     printf("\n");
     synth_close(testSynth);
 }
+

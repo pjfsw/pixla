@@ -856,10 +856,12 @@ void stopEditing(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
 
 void stopOrCutPlayback(Tracker *tracker, void noteOffFunc(Synth*, Uint8) ) {
     player_stop(tracker->player);
+    synth_setGlobalVolume(tracker->synth, 255);
     for (int i = 0; i < CHANNELS; i++) {
         synth_pitchGlideReset(tracker->synth, i);
         synth_frequencyModulation(tracker->synth, i, 0, 0);
         synth_amplitudeModulation(tracker->synth, i, 0, 0);
+        synth_setChannelVolume(tracker->synth, i, 255);
         noteOffFunc(tracker->synth, i);
     }
 

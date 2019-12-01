@@ -11,7 +11,9 @@ The Pixla project is an 8-bit music style soundtracker using intracker synthesiz
 - `4xy` - Vibrato, x = speed, y = depth
 - `7xy` - Tremolo, x = speed, y = depth
 - `Bxx` - Jump to song position (0-255).
+- `Cxx` - Channel volume 00-FF. Is reset to maximum value upon note trigger (but not on tone portamento)
 - `Dxx` - Pattern break, set position to row xx in next song position
+- `Exx` - Set global volume 00-FF. Will remain until a new value is set or song is restarted.
 - `Fxx` - Set tempo, in 2 * BPM values (i.e. 0x40 = 64 = 128 BPM)
 
 ## Keys
