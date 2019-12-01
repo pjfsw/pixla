@@ -44,6 +44,7 @@ http://coppershade.org/helpers/DOCS/protracker23.readme.txt
 #define KM_SHIFT_SONG KM_SHIFT_ALT
 
 #define PATTERN_UNDO_BUFFER_SIZE 100
+#define SPECTRUM_ANALYZER_SIZE 192
 
 typedef void (*ConfirmStateCb)(void *userData);
 
@@ -75,7 +76,13 @@ typedef struct {
 } UndoItem;
 
 
+typedef struct {
+    Uint16 pos;
+    Sint16 values[SPECTRUM_ANALYZER_SIZE];
+} SpectrumAnalyzer;
+
 typedef struct _Tracker {
+    SpectrumAnalyzer analyzer[TRACKS_PER_PATTERN];
     Synth *synth;
     Player *player;
     Keyhandler *keyhandler;
@@ -1612,6 +1619,17 @@ void createInstrumentSettings(Tracker *tracker) {
     }
 }
 
+void soundOutputHook(void *userData, int channel, Sint16 sample) {
+    Tracker *tracker = (Tracker*)userData;
+    SpectrumAnalyzer *analyzer = &tracker->analyzer[channel];
+    analyzer->values[analyzer->pos] = sample;
+    analyzer->pos++;
+    if (analyzer->pos >= SPECTRUM_ANALYZER_SIZE) {
+        screen_drawAnalyzer(channel, analyzer->values, SPECTRUM_ANALYZER_SIZE);
+        analyzer->pos = 0;
+    }
+}
+
 Tracker *tracker_init() {
     Tracker *tracker = calloc(1, sizeof(Tracker));
     tracker->song.bpm = 59;
@@ -1619,7 +1637,7 @@ Tracker *tracker_init() {
     tracker->patch = 1;
 
     if (
-            NULL == (tracker->synth = synth_init(CHANNELS, true)) ||
+            NULL == (tracker->synth = synth_init(CHANNELS, true, soundOutputHook, tracker)) ||
             NULL == (tracker->player = player_init(tracker->synth, CHANNELS)) ||
             NULL == (tracker->keyhandler = keyhandler_init())
     ) {

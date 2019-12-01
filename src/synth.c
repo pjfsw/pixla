@@ -92,6 +92,8 @@ typedef struct _Channel {
  * Definition of the synth
  */
 typedef struct _Synth {
+    SoundOutputHook soundOutputHook;
+    void *userData;
     FrequencyTable *frequencyTable;
     Uint16 sampleFreq;
     Sint8 lowpassSaw[256];
@@ -333,7 +335,7 @@ Sint8 _synth_getPulse(Synth *synth, Channel *ch) {
 }
 
 Sint8 _synth_getNoise(Synth *synth, Channel *ch) {
-    return rand() >> 24;
+    return (rand() >> 23)-128;
 }
 
 Sint8 _synth_getTriangle(Synth *synth, Channel *ch) {
@@ -460,7 +462,14 @@ void synth_processBuffer(void* userdata, Uint8* stream, int len) {
                 Sint64 scaledVolume = amp->volume * synth->volume;
                 // 1065369600 = 255*255*16384
                 Sint64 sample = ch->mean * wav->volume * amp->amplitude * scaledVolume / 1065369600;
+                if (synth->soundOutputHook != NULL) {
+                    synth->soundOutputHook(synth->userData, j, sample);
+                }
                 output += sample;
+            } else {
+                if (synth->soundOutputHook != NULL) {
+                    synth->soundOutputHook(synth->userData, j, 0);
+                }
             }
 
             wav->wavePos += waveFactor * scaledFrequency / synth->sampleFreq;
@@ -526,7 +535,7 @@ void _synth_initChannels(Synth *synth) {
     }
 }
 
-Synth* synth_init(Uint8 channels, bool enablePlayback) {
+Synth *synth_init(Uint8 channels, bool enablePlayback, SoundOutputHook soundOutputHook, void *userData) {
     if (channels < 1) {
         fprintf(stderr, "Cannot set 0 channels\n");
         return NULL;
@@ -538,6 +547,8 @@ Synth* synth_init(Uint8 channels, bool enablePlayback) {
     synth->instruments = calloc(MAX_INSTRUMENTS, sizeof(Instrument));
     synth->frequencyTable = frequencyTable_init(96, 128, -45);
     synth->volume = 255;
+    synth->soundOutputHook = soundOutputHook;
+    synth->userData = userData;
 
     srand(time(NULL));
 
@@ -853,7 +864,7 @@ void _synth_runTests(Synth *testSynth) {
 }
 
 void synth_test() {
-    Synth *testSynth = synth_init(testNumberOfChannels, false);
+    Synth *testSynth = synth_init(testNumberOfChannels, false, NULL, NULL);
     if (testSynth == NULL) {
         fprintf(stderr, "Synth test failed to start\n");
         return;

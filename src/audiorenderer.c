@@ -15,7 +15,7 @@ typedef void (*AudioRendererConsumer)(void *userData, Uint8 *stream, int len);
 
 AudioRenderer *audiorenderer_init(char *fileName) {
     AudioRenderer *renderer = calloc(1, sizeof(AudioRenderer));
-    renderer->synth = synth_init(TRACKS_PER_PATTERN, false);
+    renderer->synth = synth_init(TRACKS_PER_PATTERN, false, NULL, NULL);
     if (renderer->synth == NULL) {
         audiorenderer_close(renderer);
         fprintf(stderr, "Audiorenderer: Failed to initialize synth\n");

@@ -24,15 +24,21 @@
 #define SONG_Y_OFFSET SONG_PANEL_Y + PANEL_PADDING
 #define SONG_ROWS 12
 #define PANEL_HEIGHT (SONG_ROWS * 10 + PANEL_PADDING)
+#define PANEL_WIDTH 204
 #define MID_PANEL_X (SONG_PANEL_X + SONG_PANEL_W) + 8
 #define MID_PANEL_Y SONG_PANEL_Y
 #define PANEL_X_OFFSET (MID_PANEL_X + PANEL_PADDING)
 #define PANEL_Y_OFFSET (MID_PANEL_Y + PANEL_PADDING)
 #define PANEL_ROWS 12
-#define PANEL_COLS 24
+#define PANEL_COLS 25
 #define STATUS_MSG_ROW  (PANEL_Y_OFFSET + 10 * (PANEL_ROWS - 1))
 #define SCREEN_MAX_SONG_NAME 24
 #define SCREEN_MAX_STATUS_MSG 40
+#define ANALYZER_WIDTH 96
+#define ANALYZER_X_SPACING (ANALYZER_WIDTH + 2)
+#define ANALYZER_Y_SPACING 44
+#define ANALYZER_Y_OFFSET 38
+#define ANALYZER_AUDIO_SCALER (65535/ANALYZER_Y_SPACING)
 
 typedef struct {
     Uint8 x;
@@ -76,6 +82,8 @@ typedef struct {
     Uint32 ticks;
     Uint32 statusTimer;
     Uint32 statusOffset;
+    Sint16 analyzer[TRACKS_PER_PATTERN][ANALYZER_WIDTH];
+    Sint16 analyzerLastV[TRACKS_PER_PATTERN];
 } Screen;
 
 SDL_Color statusColor = {255,255,255};
@@ -416,6 +424,28 @@ void _screen_setEnabledCursorColor() {
     SDL_SetRenderDrawColor(screen->renderer, 255,255,255,100);
 }
 
+void _screen_setWaveColor() {
+    SDL_SetRenderDrawColor(screen->renderer, 135,55,135,100);
+}
+
+void _screen_setWaveBaseColor() {
+    SDL_SetRenderDrawColor(screen->renderer, 35,5,35,100);
+}
+
+void screen_drawAnalyzer(Uint8 track, Sint16 *samples, Uint16 length) {
+    if (screen == NULL || length == 0) {
+        return;
+    }
+    int step = length / ANALYZER_WIDTH;
+    for (int i = 0; i < length; i+=step) {
+        Sint32 average = 0;
+        for (int j = 0; j < step; j++) {
+            average += samples[i+j];
+        }
+
+        screen->analyzer[track][i/step] = (Sint32)average/(Sint32)step;
+    }
+}
 void _screen_renderSong() {
     char txt[12];
     SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_ADD);
@@ -557,7 +587,7 @@ void _screen_renderDivisions() {
     SDL_Rect pos2 = {
             .x = MID_PANEL_X,
             .y = MID_PANEL_Y,
-            .w = 196,
+            .w = PANEL_WIDTH,
             .h = PANEL_HEIGHT
     };
 
@@ -667,6 +697,23 @@ void _screen_renderSongPanel() {
     screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET, screen->bpm, &statusColor);
     if (strlen(screen->statusMsg) == 0) {
         screen_print(PANEL_X_OFFSET, STATUS_MSG_ROW, screen->songName, &statusColor);
+        for (int i = 0; i < TRACKS_PER_PATTERN; i++) {
+            int xOfs = PANEL_X_OFFSET+(i%2)*ANALYZER_X_SPACING;
+            int yOfs = PANEL_Y_OFFSET + ANALYZER_Y_OFFSET + ANALYZER_Y_SPACING * (i>>1);
+            _screen_setWaveBaseColor();
+            SDL_RenderDrawLine(screen->renderer, xOfs, yOfs,xOfs + ANALYZER_WIDTH, yOfs);
+            _screen_setWaveColor();
+            for (int s = 0; s < ANALYZER_WIDTH; s++) {
+                int v = screen->analyzer[i][s]/ANALYZER_AUDIO_SCALER;
+                SDL_RenderDrawLine(screen->renderer,
+                        xOfs+s, yOfs + screen->analyzerLastV[i],
+                        xOfs+s+1, yOfs+ v
+                        );
+
+                screen->analyzerLastV[i] = v;
+            }
+        }
+
     } else {
         int len = strlen(screen->statusMsg);
         if (len > PANEL_COLS) {

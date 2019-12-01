@@ -74,6 +74,8 @@ void screen_setChannelMute(Uint8 track, bool mute);
 
 void screen_setTableToShow(Sint8 *table, Uint8 elements);
 
+void screen_drawAnalyzer(Uint8 track, Sint16 *samples, Uint16 length);
+
 SDL_Color *screen_getDefaultColor();
 
 

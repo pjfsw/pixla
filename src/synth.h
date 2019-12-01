@@ -9,13 +9,14 @@
 
 typedef struct _Synth Synth;
 
+typedef void (*SoundOutputHook)(void *userData, int channel, Sint16 sample);
 /**
  * Initialize synth device with specified number of channels
  *
  * Set enablePlayback to true for soundcard playback, or false for
  * offline processing such as audio file generation
  */
-Synth *synth_init(Uint8 channels, bool enablePlayback);
+Synth *synth_init(Uint8 channels, bool enablePlayback, SoundOutputHook soundOutputHook, void *userData);
 
 int synth_getSampleRate(Synth *synth);
 
