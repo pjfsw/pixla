@@ -185,10 +185,6 @@ bool predicate_isKeyboardPlayable(void *userData) {
     return predicate_isStopped(userData) || predicate_isPlaying(userData) || predicate_isInstrumentMode(userData);
 }
 
-bool predicate_isNotEditMode(void *userData) {
-    return !predicate_isEditMode(userData);
-}
-
 Pattern *getCurrentPattern(Tracker *tracker) {
     return &tracker->song.patterns[tracker->currentPattern];
 }
@@ -922,12 +918,14 @@ void renderSong(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
 
 void loadSongDialog(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
+    cutPlayback(tracker);
     fileSelector_loadDir(tracker->fileSelector, "Load song", ".");
     setMode(tracker, LOAD_SONG);
 }
 
 void saveSongDialog(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
+    cutPlayback(tracker);
     inputfield_setValue(tracker->songNameField, tracker->song.name);
     setMode(tracker, SAVE_SONG);
 }
@@ -949,10 +947,10 @@ void loadSong(Tracker *tracker, char *name) {
 
     char buf[MAX_SONG_NAME+20];
     if (!persist_loadSongWithName(&tracker->song, name)) {
-        sprintf(buf, "%s  failed to load", name);
+        sprintf(buf, "%s failed to load", name);
         screen_setStatusMessage(buf);
     } else {
-        sprintf(buf, "%s loaded OK!", name);
+        sprintf(buf, "%s loaded!", name);
         screen_setStatusMessage(buf);
     }
     for (int i = 1; i < MAX_INSTRUMENTS; i++) {
@@ -983,7 +981,7 @@ void saveTheSong(void *userData) {
 
     char buf[MAX_SONG_NAME+20];
     if (persist_saveSongWithName(&tracker->song, tracker->songTmpFileName)) {
-        sprintf(buf, "Successfully saved %s", tracker->songTmpFileName);
+        sprintf(buf, "%s saved", tracker->songTmpFileName);
         screen_setStatusMessage(buf);
     } else {
         sprintf(buf, "Could not save %s", tracker->songTmpFileName);
@@ -999,7 +997,6 @@ void generateTmpSongName(Tracker *tracker, char *name) {
 void saveSong(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
     generateTmpSongName(tracker, tracker->song.name);
-    fprintf(stderr, "song name '%s'\n", tracker->songTmpFileName);
     saveTheSong(tracker);
 }
 
@@ -1010,7 +1007,7 @@ void saveSongAs(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     generateTmpSongName(tracker, name);
 
     if (!access(tracker->songTmpFileName, F_OK)) {
-        strcpy(tracker->confirmMessage, "File exists. Overwrite? (y/N)");
+        strcpy(tracker->confirmMessage, "Overwrite file (y/N)?");
         tracker->confirmStateCb = saveTheSong;
         setMode(tracker, CONFIRM_STATE);
         screen_setStatusMessage(tracker->confirmMessage);
@@ -1524,11 +1521,11 @@ void initKeyMappings(Tracker *tracker) {
     keyhandler_register(kh, SDL_SCANCODE_DOWN, 0, predicate_isNotAuxMode, moveDown, tracker);
     keyhandler_register(kh, SDL_SCANCODE_LEFT, 0, predicate_isNotAuxMode, previousColumn, tracker);
     keyhandler_register(kh, SDL_SCANCODE_RIGHT, 0, predicate_isNotAuxMode, nextColumn, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_PAGEUP, 0, NULL, moveUpMany, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_PAGEDOWN, 0, NULL, moveDownMany, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_PAGEUP, 0, predicate_isNotAuxMode, moveUpMany, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_PAGEDOWN, 0, predicate_isNotAuxMode, moveDownMany, tracker);
 
-    keyhandler_register(kh, SDL_SCANCODE_HOME, 0, NULL, moveHome, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_END, 0, NULL, moveEnd, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_HOME, 0, predicate_isNotAuxMode, moveHome, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_END, 0, predicate_isNotAuxMode, moveEnd, tracker);
 
     keyhandler_register(kh, SDL_SCANCODE_GRAVE, KM_SHIFT, NULL, decreaseStepping, tracker);
     keyhandler_register(kh, SDL_SCANCODE_GRAVE, 0, NULL, increaseStepping, tracker);
@@ -1691,12 +1688,11 @@ int main(int argc, char* args[]) {
                 if (tracker->mode == SAVE_SONG) {
                     for (int i = 0; i < strlen(event.text.text); i++) {
                         char c = event.text.text[i];
-                        if (c >=32 && c < 127) {
+                        if (c >=32) {
                             inputfield_input(tracker->songNameField, c);
                         }
                     }
                 }
-                printf("%s\n", event.text.text);
                 break;
 
             default:

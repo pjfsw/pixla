@@ -689,9 +689,9 @@ void _screen_renderSongPanel() {
         }
         screen_nprint(PANEL_X_OFFSET, STATUS_MSG_ROW, &screen->statusMsg[screen->statusOffset], charsToPrint);
         if (len > PANEL_COLS) {
-            int charsToPrintAgain = PANEL_COLS - charsToPrint;
+            int charsToPrintAgain = PANEL_COLS - charsToPrint - 1;
             if (charsToPrintAgain > 0)  {
-                screen_nprint(PANEL_X_OFFSET + 8 * charsToPrint, STATUS_MSG_ROW, screen->statusMsg, charsToPrintAgain);
+                screen_nprint(PANEL_X_OFFSET + 8 * (1+charsToPrint), STATUS_MSG_ROW, screen->statusMsg, charsToPrintAgain);
             }
         }
     }
