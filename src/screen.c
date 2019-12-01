@@ -34,11 +34,11 @@
 #define STATUS_MSG_ROW  (PANEL_Y_OFFSET + 10 * (PANEL_ROWS - 1))
 #define SCREEN_MAX_SONG_NAME 24
 #define SCREEN_MAX_STATUS_MSG 40
-#define ANALYZER_WIDTH 96
+#define ANALYZER_WIDTH 192
 #define ANALYZER_X_SPACING (ANALYZER_WIDTH + 2)
-#define ANALYZER_Y_SPACING 44
-#define ANALYZER_Y_OFFSET 38
-#define ANALYZER_AUDIO_SCALER (65535/ANALYZER_Y_SPACING)
+#define ANALYZER_Y_SPACING 28
+#define ANALYZER_Y_OFFSET 13
+#define ANALYZER_AUDIO_SCALER (65000/ANALYZER_Y_SPACING)
 
 typedef struct {
     Uint8 x;
@@ -438,12 +438,13 @@ void screen_drawAnalyzer(Uint8 track, Sint16 *samples, Uint16 length) {
     }
     int step = length / ANALYZER_WIDTH;
     for (int i = 0; i < length; i+=step) {
-        Sint32 average = 0;
+/*        Sint32 average = 0;
         for (int j = 0; j < step; j++) {
             average += samples[i+j];
-        }
+        }*/
+        screen->analyzer[track][i/step] = samples[i];
 
-        screen->analyzer[track][i/step] = (Sint32)average/(Sint32)step;
+        //screen->analyzer[track][i/step] = (Sint32)average/(Sint32)step;
     }
 }
 void _screen_renderSong() {
@@ -690,16 +691,17 @@ void _screen_renderSelectedPatch() {
         }
 
     }
+    screen_print(INSTRUMENT_X, PANEL_Y_OFFSET + 10 * (PANEL_ROWS-1), screen->bpm, &statusColor);
+
 }
 
 void _screen_renderSongPanel() {
     SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
-    screen_print(PANEL_X_OFFSET, PANEL_Y_OFFSET, screen->bpm, &statusColor);
     if (strlen(screen->statusMsg) == 0) {
         screen_print(PANEL_X_OFFSET, STATUS_MSG_ROW, screen->songName, &statusColor);
         for (int i = 0; i < TRACKS_PER_PATTERN; i++) {
-            int xOfs = PANEL_X_OFFSET+(i%2)*ANALYZER_X_SPACING;
-            int yOfs = PANEL_Y_OFFSET + ANALYZER_Y_OFFSET + ANALYZER_Y_SPACING * (i>>1);
+            int xOfs = PANEL_X_OFFSET + 3; //+(i%2)*ANALYZER_X_SPACING;
+            int yOfs = PANEL_Y_OFFSET + ANALYZER_Y_OFFSET + ANALYZER_Y_SPACING * i;
             _screen_setWaveBaseColor();
             SDL_RenderDrawLine(screen->renderer, xOfs, yOfs,xOfs + ANALYZER_WIDTH, yOfs);
             _screen_setWaveColor();
@@ -751,6 +753,7 @@ void _screen_renderInstrumentPanel() {
 
     SDL_SetRenderDrawBlendMode(screen->renderer, SDL_BLENDMODE_NONE);
     settings_render(screen->instrumentSettings, screen->renderer, PANEL_X_OFFSET, PANEL_Y_OFFSET, PANEL_ROWS);
+
 }
 
 void _screen_renderFileSelector() {

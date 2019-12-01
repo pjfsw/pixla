@@ -44,7 +44,7 @@ http://coppershade.org/helpers/DOCS/protracker23.readme.txt
 #define KM_SHIFT_SONG KM_SHIFT_ALT
 
 #define PATTERN_UNDO_BUFFER_SIZE 100
-#define SPECTRUM_ANALYZER_SIZE 192
+#define SPECTRUM_ANALYZER_SIZE 1536
 
 typedef void (*ConfirmStateCb)(void *userData);
 
@@ -1684,6 +1684,7 @@ int main(int argc, char* args[]) {
 
 
     while( !quit ){
+        Uint32 ms = SDL_GetTicks();
         /* Poll for events */
         while( SDL_PollEvent( &event ) ){
 
@@ -1737,7 +1738,10 @@ int main(int argc, char* args[]) {
         screen_setSelectedColumn(tracker->trackNavi.currentColumn);
         screen_selectPatch(tracker->patch, &tracker->song.instruments[tracker->patch]);
         screen_update();
-        SDL_Delay(5);
+        int d = 8 - SDL_GetTicks()-ms;
+        if (d > 0) {
+            SDL_Delay(d);
+        }
     }
     stopPlayback(tracker);
     screen_close();
