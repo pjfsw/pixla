@@ -515,15 +515,14 @@ void deleteCurrentSongPos(void *userData, SDL_Scancode scancode, SDL_Keymod keym
 
     if (getSongLength(&tracker->song) == 1) {
         tracker->song.arrangement[tracker->currentPos].pattern = 0;
-        return;
-    }
-
-    for (int i = tracker->currentPos ; i < MAX_PATTERNS-1; i++) {
-        tracker->song.arrangement[i].pattern = tracker->song.arrangement[i+1].pattern;
-    }
-    tracker->song.arrangement[MAX_PATTERNS-1].pattern = -1;
-    if (tracker->currentPos >= getSongLength(&tracker->song)) {
-        tracker->currentPos--;
+    } else {
+        for (int i = tracker->currentPos ; i < MAX_PATTERNS-1; i++) {
+            tracker->song.arrangement[i].pattern = tracker->song.arrangement[i+1].pattern;
+        }
+        tracker->song.arrangement[MAX_PATTERNS-1].pattern = -1;
+        if (tracker->currentPos >= getSongLength(&tracker->song)) {
+            tracker->currentPos--;
+        }
     }
     gotoSongPos(tracker, tracker->currentPos);
 }
