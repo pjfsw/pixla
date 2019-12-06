@@ -134,7 +134,7 @@ bool predicate_isEditOrStopped(void *userData) {
 
 bool predicate_isPlaying(void *userData) {
     Tracker *tracker = (Tracker*)userData;
-    return tracker->mode == PLAY;
+    return tracker->mode == PLAY || tracker->mode == PLAY_EDIT_INSTRUMENT;
 }
 
 bool predicate_isConfirmState(void *userData) {
@@ -144,22 +144,27 @@ bool predicate_isConfirmState(void *userData) {
 
 bool predicate_isNotInstrumentMode(void *userData) {
     Tracker *tracker = (Tracker*)userData;
-    return !predicate_isConfirmState(tracker) && tracker->mode != EDIT_INSTRUMENT;
+    return !predicate_isConfirmState(tracker) && tracker->mode != EDIT_INSTRUMENT && tracker->mode != PLAY_EDIT_INSTRUMENT;
 }
 
 bool predicate_isInstrumentMode(void *userData) {
     Tracker *tracker = (Tracker*)userData;
-    return tracker->mode == EDIT_INSTRUMENT;
+    return tracker->mode == EDIT_INSTRUMENT || tracker->mode == PLAY_EDIT_INSTRUMENT;
+}
+
+bool precidate_isLoadSaveMode(void *userData) {
+    Tracker *tracker = (Tracker*)userData;
+    return tracker->mode == LOAD_SONG || tracker->mode == SAVE_SONG;
 }
 
 bool predicate_isAuxMode(void *userData) {
     Tracker *tracker = (Tracker*)userData;
-    return tracker->mode == EDIT_INSTRUMENT || tracker->mode == LOAD_SONG || tracker->mode == SAVE_SONG;
+    return tracker->mode == PLAY_EDIT_INSTRUMENT || tracker->mode == EDIT_INSTRUMENT || tracker->mode == LOAD_SONG || tracker->mode == SAVE_SONG;
 }
 
 bool predicate_isNotAuxMode(void *userData) {
     Tracker *tracker = (Tracker*)userData;
-    return !(tracker->mode == EDIT_INSTRUMENT || tracker->mode == LOAD_SONG || tracker->mode == SAVE_SONG);
+    return !(tracker->mode == EDIT_INSTRUMENT || tracker->mode == PLAY_EDIT_INSTRUMENT || tracker->mode == LOAD_SONG || tracker->mode == SAVE_SONG);
 }
 
 bool predicate_isOpenSongDialog(void *userData) {
@@ -1039,9 +1044,22 @@ void invokeConfirmStateCb(void *userData, SDL_Scancode scancode, SDL_Keymod keym
     }
 }
 
+void exitInstrumentMode(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
+    Tracker *tracker = (Tracker*)userData;
+    if (player_isPlaying(tracker->player)) {
+        setMode(tracker, PLAY);
+    } else {
+        setMode(tracker, STOP);
+    }
+}
+
 void setInstrumentMode(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
-    setMode(tracker, EDIT_INSTRUMENT);
+    if (player_isPlaying(tracker->player)) {
+        setMode(tracker, PLAY_EDIT_INSTRUMENT);
+    } else {
+        setMode(tracker, EDIT_INSTRUMENT);
+    }
 }
 
 void gotoPreviousSetting(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -1544,8 +1562,8 @@ void initKeyMappings(Tracker *tracker) {
     /** Panel mode switch */
     keyhandler_register(kh, SDL_SCANCODE_F9, KM_SHIFT, predicate_isNotInstrumentMode, setInstrumentMode, tracker);
     keyhandler_register(kh, SDL_SCANCODE_F10, KM_SHIFT, predicate_isNotInstrumentMode, setInstrumentMode, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_F9, KM_SHIFT, predicate_isInstrumentMode, stopPlaying, tracker);
-    keyhandler_register(kh, SDL_SCANCODE_F10, KM_SHIFT, predicate_isInstrumentMode, stopPlaying, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_F9, KM_SHIFT, predicate_isInstrumentMode, exitInstrumentMode, tracker);
+    keyhandler_register(kh, SDL_SCANCODE_F10, KM_SHIFT, predicate_isInstrumentMode, exitInstrumentMode, tracker);
 
     /** Instrument editor */
     keyhandler_register(kh, SDL_SCANCODE_UP, 0, predicate_isInstrumentMode, gotoPreviousSetting, tracker);

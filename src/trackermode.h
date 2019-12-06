@@ -6,6 +6,7 @@ typedef enum {
     EDIT,
     PLAY,
     EDIT_INSTRUMENT,
+    PLAY_EDIT_INSTRUMENT,
     LOAD_SONG,
     SAVE_SONG,
     CONFIRM_STATE

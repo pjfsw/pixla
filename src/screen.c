@@ -792,6 +792,7 @@ void screen_update() {
     case CONFIRM_STATE:
         _screen_renderSongPanel();
         break;
+    case PLAY_EDIT_INSTRUMENT:
     case EDIT_INSTRUMENT:
         _screen_renderInstrumentPanel();
         break;
