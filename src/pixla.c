@@ -455,7 +455,6 @@ void moveSongPosEnd(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
             break;
         }
         tracker->currentPos++;
-        //printf("pos = %d\n", tracker->currentPos);
     }
 
     gotoSongPos(tracker, tracker->currentPos);

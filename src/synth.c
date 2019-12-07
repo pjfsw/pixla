@@ -23,11 +23,6 @@ typedef struct _Synth Synth;
  */
 typedef Sint8 (*GenerateWaveformFunc)(Uint8 offset);
 
-/*
- * Function to generate a sample for the current time period and channel
- */
-typedef Sint8 (*GetSampleFunc)(Synth *synth, Channel *channel);
-
 
 #define SWIPE_OFFSET_SCALE 480000
 #define SWIPE_LIMIT 4
@@ -53,8 +48,6 @@ typedef struct {
 
 typedef struct {
     Uint16 wavePos;
-    Sint8 *wave;
-    GetSampleFunc sampleFunc;
     Uint16 dutyCycle;
     Uint16 carrierFrequency;
     Sint8 pwm;
@@ -64,6 +57,7 @@ typedef struct {
     Swipe swipe;
     Modulation frequencyModulation;
     Sint8 noteModulation;
+    Waveform waveform;
 } WaveData;
 
 
@@ -316,8 +310,8 @@ Uint32 _synth_getChannelFrequency(Synth *synth, Channel *ch) {
 }
 
 
-Sint8 _synth_getSampleFromArray(Synth *synth, Channel *ch) {
-    Sint8 sample = ch->waveData.wave[ch->waveData.wavePos >> 8];
+Sint8 _synth_getSampleFromArray(Synth *synth, Channel *ch, Sint8* wavetable) {
+    Sint8 sample = wavetable[ch->waveData.wavePos >> 8];
     return sample;
 }
 
@@ -389,7 +383,7 @@ void _synth_updateWaveform(Synth *synth, Uint8 channel) {
     }
     wav->currentSegment = segment;
     Wavesegment *waveData = &instr->waves[segment];
-    Waveform waveform = waveData->waveform;
+    ch->waveData.waveform = waveData->waveform;
     ch->waveData.pwm = waveData->pwm;
     if (waveData->dutyCycle > 0) {
         ch->waveData.dutyCycle = waveData->dutyCycle << 8;
@@ -398,32 +392,27 @@ void _synth_updateWaveform(Synth *synth, Uint8 channel) {
     ch->waveData.filter = waveData->filter;
     ch->waveData.volume = waveData->volume == 0 ? 127 : waveData->volume;
     ch->waveData.carrierFrequency = waveData->carrierFrequency;
-
-    switch (waveform) {
-    case LOWPASS_SAW:
-        wav->wave = synth->lowpassSaw;
-        wav->sampleFunc =  _synth_getSampleFromArray;
-        break;
-    case LOWPASS_PULSE:
-        wav->wave = synth->lowpassPulse;
-        wav->sampleFunc =  _synth_getSampleFromArray;
-        break;
-    case PWM:
-        wav->sampleFunc = _synth_getPulse;
-        break;
-    case NOISE:
-        wav->sampleFunc = _synth_getNoise;
-        break;
-    case TRIANGLE:
-        wav->sampleFunc = _synth_getTriangle;
-        break;
-    case RING_MOD:
-        wav->sampleFunc = _synth_getRingModulation;
-        break;
-
-    }
 }
 
+
+Sint8 _synth_getSample(Synth *synth, Channel *channel, Waveform waveform) {
+    switch (waveform) {
+    case LOWPASS_SAW:
+        return _synth_getSampleFromArray(synth, channel, synth->lowpassSaw);
+    case LOWPASS_PULSE:
+        return _synth_getSampleFromArray(synth, channel, synth->lowpassPulse);
+    case PWM:
+        return _synth_getPulse(synth, channel);
+    case NOISE:
+        return _synth_getNoise(synth, channel);
+    case TRIANGLE:
+        return _synth_getTriangle(synth, channel);
+    case RING_MOD:
+        return _synth_getRingModulation(synth, channel);
+    default:
+        return 0;
+    }
+}
 
 void synth_processBuffer(void* userdata, Uint8* stream, int len) {
     Synth *synth = (Synth*)userdata;
@@ -457,7 +446,7 @@ void synth_processBuffer(void* userdata, Uint8* stream, int len) {
             if (!ch->mute && amp->adsr != OFF) {
                 /** Sample func 0-127 */
                 /** Amplitude 0-32767 */
-                Sint8 real = wav->sampleFunc(synth, ch);
+                Sint8 real = _synth_getSample(synth, ch, wav->waveform);
                 ch->mean = _synth_getMean(ch, real);
                 Sint64 scaledVolume = amp->volume * synth->volume;
                 // 1065369600 = 255*255*16384
@@ -528,8 +517,7 @@ void _synth_initChannels(Synth *synth) {
     for (int i = 0; i < synth->channels; i++) {
         synth->channelData[i].ampData.amplitude = 0;
         synth->channelData[i].ampData.adsr = OFF;
-        synth->channelData[i].waveData.wave = synth->lowpassPulse;
-        synth->channelData[i].waveData.sampleFunc = _synth_getSampleFromArray;
+        synth->channelData[i].waveData.waveform = LOWPASS_SAW;
         synth->channelData[i].patch  = 0;
         synth->channelData[i].ampData.volume = 255;
     }
@@ -753,7 +741,6 @@ void synth_muteChannel(Synth *synth, Uint8 channel, bool mute) {
     if (synth == NULL || channel >= synth->channels) {
         return;
     }
-    printf("mute\n");
     synth->channelData[channel].mute = mute;
 }
 
