@@ -46,8 +46,6 @@ http://coppershade.org/helpers/DOCS/protracker23.readme.txt
 #define PATTERN_UNDO_BUFFER_SIZE 100
 #define SPECTRUM_ANALYZER_SIZE 1536
 
-typedef void (*ConfirmStateCb)(void *userData);
-
 typedef struct _Tracker Tracker;
 
 typedef struct {
@@ -106,8 +104,8 @@ typedef struct _Tracker {
     Uint16 patternUndoPos;
     Uint16 patternUndoSize;
     Uint16 patternRedoSize;
+    bool confirmOverwriteState;
     UndoItem patternUndo[PATTERN_UNDO_BUFFER_SIZE];
-    ConfirmStateCb confirmStateCb;
     char songTmpFileName[MAX_SONG_NAME+1];
     char confirmMessage[100];
 } Tracker;
@@ -1020,7 +1018,7 @@ void saveSongAs(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
 
     if (!access(tracker->songTmpFileName, F_OK)) {
         strcpy(tracker->confirmMessage, "Overwrite file (y/N)?");
-        tracker->confirmStateCb = saveTheSong;
+        tracker->confirmOverwriteState = true;
         setMode(tracker, CONFIRM_STATE);
         screen_setStatusMessage(tracker->confirmMessage);
         return;
@@ -1038,9 +1036,10 @@ void invokeConfirmStateCb(void *userData, SDL_Scancode scancode, SDL_Keymod keym
     Tracker *tracker = (Tracker*)userData;
 
     setMode(tracker, STOP);
-    if (tracker->confirmStateCb != NULL && scancode == SDL_SCANCODE_Y) {
-        tracker->confirmStateCb(userData);
+    if (tracker->confirmOverwriteState && scancode == SDL_SCANCODE_Y) {
+        saveTheSong(userData);
     }
+    tracker->confirmOverwriteState = false;
 }
 
 void exitInstrumentMode(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
@@ -1700,7 +1699,6 @@ int main(int argc, char* args[]) {
 
 
     while( !quit ){
-        Uint32 ms = SDL_GetTicks();
         /* Poll for events */
         while( SDL_PollEvent( &event ) ){
 
@@ -1732,6 +1730,13 @@ int main(int argc, char* args[]) {
                 }
                 break;
 
+            case SDL_AUDIODEVICEADDED:
+                printf("audio device added %d, is capture %d\n", event.adevice.which, event.adevice.iscapture);
+                break;
+            case SDL_AUDIODEVICEREMOVED:
+                printf("audio device removed %d, is capture %d\n", event.adevice.which, event.adevice.iscapture);
+                break;
+
             default:
                 break;
             }
@@ -1754,10 +1759,7 @@ int main(int argc, char* args[]) {
         screen_setSelectedColumn(tracker->trackNavi.currentColumn);
         screen_selectPatch(tracker->patch, &tracker->song.instruments[tracker->patch]);
         screen_update();
-        int d = 8 - SDL_GetTicks()-ms;
-        if (d > 0) {
-            SDL_Delay(d);
-        }
+        SDL_Delay(2);
     }
     stopPlayback(tracker);
     screen_close();
