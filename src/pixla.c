@@ -104,7 +104,6 @@ typedef struct _Tracker {
     Uint16 patternUndoPos;
     Uint16 patternUndoSize;
     Uint16 patternRedoSize;
-    bool confirmOverwriteState;
     UndoItem patternUndo[PATTERN_UNDO_BUFFER_SIZE];
     char songTmpFileName[MAX_SONG_NAME+1];
     char confirmMessage[100];
@@ -1018,7 +1017,6 @@ void saveSongAs(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
 
     if (!access(tracker->songTmpFileName, F_OK)) {
         strcpy(tracker->confirmMessage, "Overwrite file (y/N)?");
-        tracker->confirmOverwriteState = true;
         setMode(tracker, CONFIRM_STATE);
         screen_setStatusMessage(tracker->confirmMessage);
         return;
@@ -1034,12 +1032,11 @@ void saveSongAs(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
 
 void invokeConfirmStateCb(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
-
+    bool isConfirmState = tracker->mode == CONFIRM_STATE;
     setMode(tracker, STOP);
-    if (tracker->confirmOverwriteState && scancode == SDL_SCANCODE_Y) {
+    if (isConfirmState && scancode == SDL_SCANCODE_Y) {
         saveTheSong(userData);
     }
-    tracker->confirmOverwriteState = false;
 }
 
 void exitInstrumentMode(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
