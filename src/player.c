@@ -149,6 +149,10 @@ Uint32 player_processSong(Uint32 interval, void *param) {
         }
         if (effect == EFFECT_JUMP_SONG_POS) {
             player->jumpSongPos = parameter;
+            if (player->jumpSongPos <= player->songPos) {
+                // For rendering, we won't support jumping backwards to create infinite loops
+                player->isEndReached = true;
+            }
         }
         bool isArpeggio = (effect == EFFECT_ARPEGGIO) && parameter > 0;
         Sint8 *arpeggio = player->channelData[channel].arpeggio;
