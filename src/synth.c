@@ -120,14 +120,19 @@ typedef struct _Synth {
 void _synth_updateAdsr(Synth *synth, Channel *ch) {
     Instrument *instr = &synth->instruments[ch->patch];
     AmpData *amp = &ch->ampData;
+    // Snapshot current instrument settings to avoid concurrent modification
+    Sint8 attack = instr->attack;
+    Sint8 decay = instr->decay;
+    Sint8 sustain = instr->sustain;
+    Sint8 release = instr->release;
 
     switch(amp->adsr) {
     case ATTACK:
-        if (instr->attack == 0) {
+        if (attack <= 0) {
             amp->amplitude = 32767;
             amp->adsr = DECAY;
         } else {
-            Uint16 tableIndex = ADSR_TIMESCALER_2 * amp->adsrTimer / instr->attack;
+            Uint16 tableIndex = ADSR_TIMESCALER_2 * amp->adsrTimer / attack;
             if (tableIndex < 511) { // 511 = scaled up twice
                 amp->amplitude = synth->attackTable[tableIndex] << 7;
                 amp->adsrTimer++;
@@ -139,22 +144,22 @@ void _synth_updateAdsr(Synth *synth, Channel *ch) {
         }
         break;
     case DECAY:
-        if (instr->decay == 0) {
-            amp->amplitude = instr->sustain << 8;
+        if (decay <= 0) {
+            amp->amplitude = sustain << 8;
             amp->adsr = SUSTAIN;
         } else {
-            Uint16 tableIndex = ADSR_TIMESCALER_2 * amp->adsrTimer / instr->decay;
+            Uint16 tableIndex = ADSR_TIMESCALER_2 * amp->adsrTimer / decay;
             if (tableIndex < 511) { // 511 = scaled up twice
-                amp->amplitude = (instr->sustain << 8) + ((127-instr->sustain) * synth->decayReleaseTable[tableIndex]);
+                amp->amplitude = (sustain << 8) + ((127-sustain) * synth->decayReleaseTable[tableIndex]);
                 amp->adsrTimer++;
             } else {
-                amp->amplitude = instr->sustain << 8;
+                amp->amplitude = sustain << 8;
                 amp->adsr = SUSTAIN;
             }
         }
         break;
     case RELEASE:
-        if (instr->release == 0) {
+        if (release == 0) {
             amp->amplitude = 0;
             amp->adsr = OFF;
         } else if (amp->adsrTimer < 0xffff) {
@@ -188,9 +193,9 @@ void _synth_updateAdsr(Synth *synth, Channel *ch) {
             //
             //  i
 
-            Uint16 tableIndex = ADSR_TIMESCALER_2 * amp->adsrTimer / instr->release;
+            Uint16 tableIndex = ADSR_TIMESCALER_2 * amp->adsrTimer / release;
             if (tableIndex < 511) { // 511 = scaled up twice
-                amp->amplitude = instr->sustain * synth->decayReleaseTable[tableIndex];
+                amp->amplitude = sustain * synth->decayReleaseTable[tableIndex];
                 amp->adsrTimer++;
             } else {
                 amp->amplitude = 0;
@@ -204,7 +209,7 @@ void _synth_updateAdsr(Synth *synth, Channel *ch) {
     case OFF:
         break;
     case SUSTAIN:
-        amp->amplitude = instr->sustain << 8;
+        amp->amplitude = sustain << 8;
         break;
     }
     if (amp->adsr != OFF && amp->amplitudeModulation.amplitude > 0) {
@@ -288,8 +293,12 @@ Uint32 _synth_getChannelFrequency(Synth *synth, Channel *ch) {
     } else if (wav->noteModulation > 0) {
         note = wav->noteModulation;
     }
-    if (ch->pitchModulation.notesLength > 0 && ch->pitchModulation.speed > 0) {
-        note += ch->pitchModulation.notes[(ch->playtime/(SAMPLE_RATE_MS * ch->pitchModulation.speed) )% ch->pitchModulation.notesLength];
+
+    Uint8 notesLength = ch->pitchModulation.notesLength;
+    Uint8 modSpeed = ch->pitchModulation.speed;
+
+    if (notesLength > 0 && modSpeed > 0) {
+        note += ch->pitchModulation.notes[(ch->playtime/(SAMPLE_RATE_MS * modSpeed) ) % notesLength];
     }
 
     Uint32 scaledFrequency = frequencyTable_getScaledValue(ft, note);

@@ -290,13 +290,13 @@ void increaseStepping(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) {
     tracker->stepping++;
 }
 
-void printUndoStatus(Tracker *tracker) {
-//    printf("UNDOPOS %d UNDOSIZE %d REDOSIZE %d \n", tracker->patternUndoPos, tracker->patternUndoSize, tracker->patternRedoSize);
-}
-
 void saveCurrentPattern(Tracker *tracker) {
-    memcpy(&tracker->patternUndo[tracker->patternUndoPos].pattern, getCurrentPattern(tracker), sizeof(Pattern));
-    memcpy(&tracker->patternUndo[tracker->patternUndoPos].trackNavi, &tracker->trackNavi, sizeof(TrackNavigation));
+    if (tracker->patternUndoPos < PATTERN_UNDO_BUFFER_SIZE) {
+        memcpy(&tracker->patternUndo[tracker->patternUndoPos].pattern, getCurrentPattern(tracker), sizeof(Pattern));
+        memcpy(&tracker->patternUndo[tracker->patternUndoPos].trackNavi, &tracker->trackNavi, sizeof(TrackNavigation));
+    } else {
+        fprintf(stderr, "saveCurrentPattern: Patternundopos %d exceeds undo buffer size %d\n", tracker->patternUndoPos,  PATTERN_UNDO_BUFFER_SIZE);
+    }
 }
 
 void nextPatternUndoPos(Tracker *tracker) {
@@ -321,13 +321,16 @@ void registerPatternState(Tracker *tracker) {
     }
 
     tracker->patternRedoSize = 0;
-    printUndoStatus(tracker);
 }
 
 void recoverCurrentPattern(Tracker *tracker) {
-    UndoItem *recovery = &tracker->patternUndo[tracker->patternUndoPos];
-    memcpy(&tracker->song.patterns[tracker->currentPattern], &recovery->pattern, sizeof(Pattern));
-    memcpy(&tracker->trackNavi, &recovery->trackNavi, sizeof(TrackNavigation));
+    if (tracker->patternUndoPos < PATTERN_UNDO_BUFFER_SIZE) {
+        UndoItem *recovery = &tracker->patternUndo[tracker->patternUndoPos];
+        memcpy(&tracker->song.patterns[tracker->currentPattern], &recovery->pattern, sizeof(Pattern));
+        memcpy(&tracker->trackNavi, &recovery->trackNavi, sizeof(TrackNavigation));
+    } else {
+        fprintf(stderr, "recoverCurrentPattern: Patternundopos %d exceeds undo buffer size %d\n", tracker->patternUndoPos,  PATTERN_UNDO_BUFFER_SIZE);
+    }
 
 }
 
@@ -347,7 +350,6 @@ void undoPatternChange(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) 
     }
     tracker->patternRedoSize++;
     recoverCurrentPattern(tracker);
-    printUndoStatus(tracker);
 }
 
 void redoPatternChange(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) {
@@ -359,7 +361,6 @@ void redoPatternChange(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) 
     nextPatternUndoPos(tracker);
     recoverCurrentPattern(tracker);
     tracker->patternRedoSize--;
-    printUndoStatus(tracker);
 }
 
 void editCommand(void *userData, SDL_Scancode scancode,SDL_Keymod keymod) {
@@ -697,6 +698,7 @@ void transposePatternUp(void *userData, SDL_Scancode scancode, SDL_Keymod keymod
  */
 void copyTrack(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
+    fprintf(stderr, "Copy track\n");
     memcpy(&tracker->trackClipboard, getCurrentTrack(tracker), sizeof(Track));
 }
 
@@ -715,6 +717,8 @@ void pasteTrack(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     int notesToPaste = TRACK_LENGTH-tracker->trackNavi.rowOffset;
     Track *track = getCurrentTrack(tracker);
 
+    fprintf(stderr, "Paste track\n");
+
     memcpy(&track->notes[tracker->trackNavi.rowOffset],
             &tracker->trackClipboard, notesToPaste*sizeof(Note)
     );
@@ -725,6 +729,7 @@ void pasteTrack(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
  */
 void copyPattern(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
+    fprintf(stderr, "Copy pattern\n");
     memcpy(&tracker->patternClipboard, getCurrentPattern(tracker), sizeof(Pattern));
 }
 
@@ -740,6 +745,7 @@ void pastePattern(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
     registerPatternState(tracker);
 
+    fprintf(stderr, "Paste pattern\n");
     memcpy(getCurrentPattern(tracker), &tracker->patternClipboard, sizeof(Pattern));
 }
 
@@ -771,6 +777,14 @@ void previousTrack(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
 void previousPattern(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
 
+    if (tracker->currentPos >= MAX_PATTERNS) {
+        fprintf(stderr,
+                "Current track position %d exceeds pattern limit %d\n",
+                tracker->currentPos,
+                MAX_PATTERNS
+        );
+        return;
+    }
     if (tracker->song.arrangement[tracker->currentPos].pattern <= 0) {
         return;
     }
