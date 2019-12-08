@@ -698,7 +698,6 @@ void transposePatternUp(void *userData, SDL_Scancode scancode, SDL_Keymod keymod
  */
 void copyTrack(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
-    fprintf(stderr, "Copy track\n");
     memcpy(&tracker->trackClipboard, getCurrentTrack(tracker), sizeof(Track));
 }
 
@@ -717,8 +716,6 @@ void pasteTrack(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     int notesToPaste = TRACK_LENGTH-tracker->trackNavi.rowOffset;
     Track *track = getCurrentTrack(tracker);
 
-    fprintf(stderr, "Paste track\n");
-
     memcpy(&track->notes[tracker->trackNavi.rowOffset],
             &tracker->trackClipboard, notesToPaste*sizeof(Note)
     );
@@ -729,7 +726,6 @@ void pasteTrack(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
  */
 void copyPattern(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
-    fprintf(stderr, "Copy pattern\n");
     memcpy(&tracker->patternClipboard, getCurrentPattern(tracker), sizeof(Pattern));
 }
 
@@ -745,7 +741,6 @@ void pastePattern(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
     registerPatternState(tracker);
 
-    fprintf(stderr, "Paste pattern\n");
     memcpy(getCurrentPattern(tracker), &tracker->patternClipboard, sizeof(Pattern));
 }
 
@@ -930,13 +925,18 @@ void increaseSongBpm(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
 
 void renderSong(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
     Tracker *tracker = (Tracker*)userData;
-    AudioRenderer *renderer = audiorenderer_init("song.wav");
+    char filename[MAX_SONG_NAME + 10];
+    strcpy(filename, tracker->song.name);
+    strcat(filename, ".wav");
+    AudioRenderer *renderer = audiorenderer_init(filename);
     if (renderer == NULL) {
+        screen_setStatusMessage("Failed to render song!");
         fprintf(stderr, "Audio renderer failed to initialize\n");
         return;
     }
     audiorenderer_renderSong(renderer, &tracker->song, 60*60*1000);
     audiorenderer_close(renderer);
+    screen_setStatusMessage("Rendered successfully!");
 }
 
 void loadSongDialog(void *userData, SDL_Scancode scancode, SDL_Keymod keymod) {
