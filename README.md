@@ -7,11 +7,13 @@ Using Make:
 ```
 $ cmake -S . -B build
 $ make -C build
+# make -C build install
 ```
 Using Ninja:
 ```
 $ cmake -S . -B build -GNinja
 $ ninja -C build
+# ninja -C build install
 ```
 
 ## Command column description

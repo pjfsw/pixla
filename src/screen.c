@@ -1,3 +1,5 @@
+#define _GNU_SOURCE 
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <SDL2/SDL.h>
@@ -7,6 +9,7 @@
 #include "screen.h"
 #include "note.h"
 #include "inputfield.h"
+#include "config.h"
 
 #define SCREEN_WIDTH 400
 #define SCREEN_HEIGHT 300
@@ -94,19 +97,46 @@ SDL_Color noteOffColor = {80,80,80};
 
 Screen *screen = NULL;
 
-#define RESOURCE_DIR "../resources/"
+#define FALLBACK_RESOURCE_DIR1 "../resources"
+#define FALLBACK_RESOURCE_DIR2 "resources"
+
+const char* const dirs[] = {
+    RESOURCE_DIR,
+    FALLBACK_RESOURCE_DIR1,
+    FALLBACK_RESOURCE_DIR2,
+};
 
 void _screen_loadResources() {
-     screen->logo = IMG_LoadTexture(screen->renderer, "../resources/pixla.png");
-     if (screen->logo != NULL) {
-         SDL_QueryTexture(screen->logo, NULL, NULL, &screen->logo_w, &screen->logo_h);
+     for (int i = 0; i < 3; i++) {
+         const char *dir = dirs[i];
+         char *path;
+         if (-1 == asprintf(&path, "%s/pixla.png", dir)) {
+             fprintf(stderr, "Failed to allocate memory!");
+             exit(1);
+         }
+         screen->logo = IMG_LoadTexture(screen->renderer, path);
+         free(path);
+         if (screen->logo != NULL) {
+              if (-1 == asprintf(&path, "%s/piano.png", dir)) {
+                   fprintf(stderr, "Failed to allocate memory!");
+                   exit(1);
+              }
+              screen->piano = IMG_LoadTexture(screen->renderer, path);
+              free(path);
+              if (-1 == asprintf(&path, "%s/nesfont.fon", dir)) {
+                   fprintf(stderr, "Failed to allocate memory!");
+                   exit(1);
+              }
+              screen->font = TTF_OpenFont(path, 8);
+              free(path);
+              break;
+         }
      }
-     screen->piano = IMG_LoadTexture(screen->renderer, "../resources/piano.png");
-
-     screen->font = TTF_OpenFont("../resources/nesfont.fon", 8);
-     if (screen->font == NULL) {
-         fprintf(stderr, "Failed to load font\n");
+     if (screen->logo == NULL) {
+         fprintf(stderr, "Failed to load resources!");
+         exit(1);
      }
+     SDL_QueryTexture(screen->logo, NULL, NULL, &screen->logo_w, &screen->logo_h);
 }
 
 void _screen_createAsciiTextures() {

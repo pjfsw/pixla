@@ -1,6 +1,7 @@
 
 #include <SDL2/SDL.h>
 #include <stdio.h>
+#include <time.h>
 
 #include "synth.h"
 #include "frequency_table.h"
