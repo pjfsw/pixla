@@ -2,6 +2,20 @@
 
 The Pixla project is an 8-bit music style soundtracker using intracker synthesized sounds.
 
+## Build
+Using Make:
+```
+$ cmake -S . -B build
+$ make -C build
+# make -C build install
+```
+Using Ninja:
+```
+$ cmake -S . -B build -GNinja
+$ ninja -C build
+# ninja -C build install
+```
+
 ## Command column description
 
 - `0xy` - Arpeggio, 4x speed playing note, note + x, note + y, note + 12
